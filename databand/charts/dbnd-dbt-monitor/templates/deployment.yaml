@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ template "dbnd-dbt-monitor.fullname" . }}"
+  labels:
+    app.kubernetes.io/name: "{{ template "dbnd-dbt-monitor.fullname" . }}"
+    app.kubernetes.io/managed-by: "{{ .Release.Service }}"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+  annotations:
+    {{- toYaml .Values.annotations | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "{{ template "dbnd-dbt-monitor.fullname" . }}"
+      app.kubernetes.io/instance: "{{ .Release.Name }}"
+{{- with .Values.deploymentStrategy }}
+  strategy:
+{{ toYaml . | trim | indent 4 }}
+{{- end }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "{{ template "dbnd-dbt-monitor.fullname" . }}"
+        app.kubernetes.io/instance: "{{ .Release.Name }}"
+    spec:
+      imagePullSecrets:
+      {{- if .Values.global.databand.image.pullSecret }}
+        - name: {{ .Values.global.databand.image.pullSecret }}
+      {{- else }}
+        - name: {{ .Values.image.pullSecret }}
+      {{- end }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken | default false }}
+      containers:
+      - name: {{ .Chart.Name }}-dbt-monitor
+        {{- if .Values.containerSecurityContext }}
+        securityContext:
+{{ toYaml .Values.containerSecurityContext | indent 10 }}
+        {{- else if .Values.global.containerSecurityContext }}
+        securityContext:
+{{ toYaml .Values.global.containerSecurityContext | indent 10 }}
+        {{- end }}
+        args:
+            - "bash"
+            - "-c"
+            - >
+              {{ include "dbnd-dbt-monitor.cmdrun" . }}
+        envFrom:
+        - configMapRef:
+            name: "{{ template "dbnd-dbt-monitor.fullname" . }}-deployment-env"
+        env:
+          {{- include "dbnd-dbt-monitor.mapenvsecrets" . | indent 10 }}
+        {{- if and .Values.global.databand.image.repository .Values.global.databand.image.tag }}
+        image: {{ .Values.global.databand.image.repository }}/dbnd-dbt-monitor:python-{{ .Values.global.databand.image.tag }}
+        {{- else }}
+        image: {{ .Values.image.repository }}/dbnd-dbt-monitor:python-{{ .Values.image.tag }}
+        {{- end }}
+        {{- if .Values.global.databand.image.pullPolicy }}
+        imagePullPolicy: {{ .Values.global.databand.image.pullPolicy }}
+        {{- else }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        {{- end }}
+        {{- if .Values.podTemplate.containerProbes.enabled }}
+        livenessProbe:
+          {{- toYaml .Values.podTemplate.containerProbes.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.podTemplate.containerProbes.readinessProbe | nindent 10 }}
+        {{- end }}
+        ports:
+          - name: web
+            containerPort: {{ .Values.prometheus_port }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+      restartPolicy: Always
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}
+      {{- if .Values.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.podSecurityContext | indent 8 }}
+      {{- else if .Values.global.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.global.podSecurityContext | indent 8 }}
+      {{- end }}

@@ -1,0 +1,65 @@
+apiVersion: cache.gcp.crossplane.io/v1beta1
+kind: CloudMemorystoreInstance
+metadata:
+  labels:
+    app: {{ template "cloudmemorystore.fullname" . }}
+    release: {{ .Release.Name }}
+    component: cloudmemorystore
+    chart: {{ template "cloudmemorystore.chart" . }}
+    heritage: {{ .Release.Service }}
+  {{- if .Values.memorystoreInstanceName }}
+  name: dbnd-{{ .Values.memorystoreInstanceName }}
+  {{ else }}
+  name: {{ template "cloudmemorystore.fullname" . }}
+  {{- end }}
+spec:
+  deletionPolicy: {{ .Values.deletionPolicy }}
+  forProvider:
+    region: {{ .Values.settings.region }}
+
+    {{- if .Values.memorystoreInstanceName }}
+    displayName: dbnd-{{ .Values.memorystoreInstanceName }}
+    {{ else }}
+    displayName: {{ template "cloudmemorystore.fullname" . }}
+    {{- end }}
+
+    {{- if .Values.settings.locationId }}
+    locationId: {{ .Values.settings.locationId }}
+    {{- end }}
+    {{- if .Values.settings.alternativeLocationId }}
+    alternativeLocationId: {{ .Values.settings.alternativeLocationId }}
+    {{- end }}
+
+    redisVersion: {{ .Values.settings.redisVersion | default "REDIS_6_X" }}
+    tier: {{ .Values.settings.tier | default "STANDARD_HA" }}
+    authEnabled: {{ .Values.settings.authEnabled | default true }}
+
+    memorySizeGb: {{ .Values.settings.memorySizeGb | default "1" }}
+
+    {{- if .Values.settings.redisConfigs }}
+    redisConfigs:
+    {{- range $k, $v := .Values.settings.redisConfigs }}
+      {{ $k }}: {{ $v }}
+    {{- end }}
+    {{- end }}
+
+    authorizedNetwork: {{ .Values.settings.authorizedNetwork }}
+    {{- if .Values.settings.reservedIpRange }}
+    reservedIpRange: {{ .Values.settings.reservedIpRange }}
+    {{- end }}
+
+    connectMode: {{ .Values.settings.connectMode | default "PRIVATE_SERVICE_ACCESS" }}
+
+    {{- if .Values.settings.labels }}
+    labels:
+    {{- range $k, $v := .Values.settings.labels }}
+      {{ $k }}: {{ $v | quote }}
+    {{- end }}
+    {{- end }}
+
+  writeConnectionSecretToRef:
+    namespace: {{ .Release.Namespace }}
+    name: {{ .Values.writeConnectionSecretToRef.name | default "cloudmemorystore-conn" }}
+
+  providerConfigRef:
+    name: {{ .Values.providerConfigRef | default "default" }}

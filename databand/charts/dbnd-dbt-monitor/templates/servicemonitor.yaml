@@ -1,0 +1,42 @@
+
+{{- if .Values.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: "{{ template "dbnd-dbt-monitor.fullname" . }}"
+  {{- if .Values.serviceMonitor.namespace }}
+  namespace: {{ .Values.serviceMonitor.namespace }}
+  {{- end }}
+  labels:
+    app.kubernetes.io/name: "{{ template "dbnd-dbt-monitor.fullname" . }}"
+    app.kubernetes.io/managed-by: "{{ .Release.Service }}"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+    {{- if .Values.serviceMonitor.additionalLabels }}
+    {{- toYaml .Values.serviceMonitor.additionalLabels | nindent 4 }}
+    {{- end }}
+spec:
+  endpoints:
+  - interval: {{ .Values.serviceMonitor.interval }}
+    {{- if .Values.serviceMonitor.scrapeTimeout }}
+    scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+    targetPort: web
+    path: {{ .Values.serviceMonitor.path }}
+    scheme: {{ .Values.serviceMonitor.scheme }}
+  jobLabel: "{{ .Release.Name }}"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "{{ template "dbnd-dbt-monitor.fullname" . }}"
+      app.kubernetes.io/instance: "{{ .Release.Name }}"
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- if .Values.serviceMonitor.targetLabels }}
+  targetLabels:
+{{- range .Values.serviceMonitor.targetLabels }}
+    - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}

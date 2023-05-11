@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "databand.fullname" . }}-web
+  labels:
+    app: {{ template "databand.name" . }}
+    component: web
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+  {{- if .Values.web.service.annotations }}
+{{ toYaml .Values.web.service.annotations | trim | indent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.web.service.type }}
+  type: {{ .Values.web.service.type }}
+  {{- else }}
+  type: {{ .Values.databand.service.type }}
+  {{- end }}
+  selector:
+    app: {{ template "databand.name" . }}
+    component: web
+    release: {{ .Release.Name }}
+  ports:
+    - name: web
+      protocol: TCP
+      port: {{ .Values.web.service.servicePort }}
+      targetPort: 8090
+{{- if .Values.web.service.nodePort }}
+      nodePort: {{ .Values.web.service.nodePort }}
+{{- end }}

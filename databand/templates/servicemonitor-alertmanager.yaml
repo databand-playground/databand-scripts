@@ -1,0 +1,42 @@
+
+{{- if .Values.prometheus.alertmanager.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ template "databand.fullname" . }}-alertmanager
+  {{- if .Values.prometheus.alertmanager.serviceMonitor.namespace }}
+  namespace: {{ .Values.prometheus.alertmanager.serviceMonitor.namespace }}
+  {{- end }}
+  labels:
+    app: {{ template "databand.name" . }}-alertmanager
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.prometheus.alertmanager.serviceMonitor.labels }}
+    {{- toYaml .Values.prometheus.alertmanager.serviceMonitor.labels | nindent 4 }}
+    {{- end }}
+spec:
+  endpoints:
+  - interval: {{ .Values.prometheus.alertmanager.serviceMonitor.interval }}
+    {{- if .Values.prometheus.alertmanager.serviceMonitor.scrapeTimeout }}
+    scrapeTimeout: {{ .Values.prometheus.alertmanager.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+    port: http
+    path: /metrics
+  jobLabel: "{{ .Release.Name }}"
+  selector:
+    matchLabels:
+      app: prometheus
+      component: alertmanager
+      release: "{{ .Release.Name }}"
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- if .Values.prometheus.alertmanager.serviceMonitor.targetLabels }}
+  targetLabels:
+{{- range .Values.prometheus.alertmanager.serviceMonitor.targetLabels }}
+    - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}

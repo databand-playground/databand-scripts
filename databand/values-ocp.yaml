@@ -1,0 +1,134 @@
+## OpenShift-specific values overrides.
+#
+# OpenShift requires pod securityContext and container securityContext to be set according to OpenShift cluster SCCs.
+#
+# Databand Helm chart provide two methods on how to do that:
+# First one (and default for this values file) is to disable securityContext for all Databand-related workloads.
+# This will allow OpenShift's cluster SCC admission controller to inject securityContext dynamically on chart deploy,
+# based on OpenShift's cluster configured SCCs. It also provides great portability between different OpenShift versions.
+#
+# Second method - is to set both pod and container securityContexts by the user,
+# who deploy the chart via corresponding Helm values in this file. These values are commented out and can be
+# uncommented to set desired specific securityContext.
+#
+##
+
+## Global securityContext parameters for additional Databand components, deployed as subcharts.
+# Uncomment these values to set a specific desired securityContext (second method).
+# for dbnd-datasource-monitor, dbnd-datastage-monitor and dbnd-dbt-monitor
+##
+
+# global:
+#   databand:
+
+#   podSecurityContext:
+#     runAsNonRoot: true
+
+#   containerSecurityContext:
+#     runAsNonRoot: true
+#     allowPrivilegeEscalation: false
+#     seccompProfile:
+#       type: RuntimeDefault
+#     capabilities:
+#       drop:
+#         - ALL
+
+## Local securityContext parameters for main Databand components, deployed as subcharts.
+# Uncomment these values to set a specific desired securityContext (second method).
+# for all main Databand components (but not dependencies like Redis) like dbnd-web dbnd-tracking.
+# These values are not accessible from the subcharts.
+##
+
+# databand:
+#   podSecurityContext:
+#     runAsNonRoot: true
+
+#   containerSecurityContext:
+#     allowPrivilegeEscalation: false
+#     seccompProfile:
+#       type: RuntimeDefault
+#     capabilities:
+#       drop:
+#         - ALL
+
+#   initContainers:
+#     securityContext:
+#       allowPrivilegeEscalation: false
+#       seccompProfile:
+#         type: RuntimeDefault
+#       runAsNonRoot: true
+#       capabilities:
+#         drop:
+#           - ALL
+##
+
+## Override dbnd-webapp podSecurityContext.
+# For regular Kuberentes distributions we set podSecurityContext.fsGroup for dbnd-webapp component, defined in main values.yaml file
+# For OpenShift we disable a whole podSecurityContext explictily by set it to empty value.
+webapp:
+  podSecurityContext:
+##
+
+## Dependency securityContext parameters
+redis:
+  volumePermissions:
+    enabled: false
+    securityContext:
+      runAsUser: "auto"
+
+  master:
+    podSecurityContext:
+      enabled: false
+
+    containerSecurityContext:
+      enabled: false
+
+postgresql:
+  # https://github.com/bitnami/charts/tree/main/bitnami/postgresql#differences-between-bitnami-postgresql-image-and-docker-official-image
+  # securityContext should be disabled when chart is deployed to OpenShift.
+  volumePermissions:
+    enabled: false
+    securityContext:
+      runAsUser: "auto"
+
+  shmVolume:
+    chmod:
+      enabled: false
+
+  primary:
+    podSecurityContext:
+      enabled: false
+
+    containerSecurityContext:
+      enabled: false
+
+# https://github.com/helm/helm/issues/9027
+# During the known bug in Helm client (mentioned above), we can't override Prometheus securityContext.
+# Set a specific desired securityContext for Prometheus, Alertmanager and configmapReload.
+# We set a default OpenShift restricted-v2 SCC lower range values here.
+# Can be customized according to specific OpenShift version restricted SCC, or to custom SCC(s).
+prometheus:
+  alertmanager:
+    securityContext:
+      runAsNonRoot: true
+      # https://docs.openshift.com/container-platform/4.11/authentication/managing-security-context-constraints.html#authorization-SCC-strategies_configuring-internal-oauth
+      runAsGroup: 1001010000
+      runAsUser: 1001010000
+      fsGroup: 1001010000
+    containerSecurityContext: {}
+
+  server:
+    securityContext:
+      runAsNonRoot: true
+      # https://docs.openshift.com/container-platform/4.11/authentication/managing-security-context-constraints.html#authorization-SCC-strategies_configuring-internal-oauth
+      runAsGroup: 1001010000
+      runAsUser: 1001010000
+      fsGroup: 1001010000
+    containerSecurityContext: {}
+
+  configmapReload:
+    prometheus:
+      containerSecurityContext: {}
+    alertmanager:
+      containerSecurityContext: {}
+##

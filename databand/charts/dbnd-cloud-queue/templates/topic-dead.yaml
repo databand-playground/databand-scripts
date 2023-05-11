@@ -1,0 +1,18 @@
+{{- if .Values.pubsub.topic.dead.enabled }}
+apiVersion: pubsub.gcp.crossplane.io/v1alpha1
+kind: Topic
+metadata:
+  labels:
+    app: {{ .Release.Name }}
+    release: {{ .Release.Name }}
+    component: topic
+    chart: {{ .Chart.Name }}
+    chart-version: {{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+  name: databand-{{ .Values.clientName }}-dead
+spec:
+  deletionPolicy: {{ .Values.deletionPolicy }}
+  forProvider:
+    labels:
+      app: databand-{{ .Values.clientName }}
+{{- end }}

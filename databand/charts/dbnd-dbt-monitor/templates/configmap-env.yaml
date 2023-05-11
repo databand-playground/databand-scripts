@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ template "dbnd-dbt-monitor.fullname" . }}-deployment-env"
+  labels:
+    app.kubernetes.io/name: "{{ template "dbnd-dbt-monitor.fullname" . }}"
+    app.kubernetes.io/managed-by: "{{ .Release.Service }}"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+data:
+
+  ## Force UTC timezone
+  TZ: Etc/UTC
+  {{- if .Values.dbnd_tracking_url }}
+  DBND__CORE__DATABAND_URL: "{{ .Values.dbnd_tracking_url }}"
+  {{ else }}
+  DBND__CORE__DATABAND_URL: "http://{{ .Release.Name }}-tracking.{{ .Release.Namespace }}:8091"
+  {{- end }}
+
+  DBND__DBT_MONITOR__PROMETHEUS_PORT: "{{ .Values.prometheus_port }}"
+  DBND__DBT_MONITOR__LOG_FORMAT: "{{ .Values.log_format }}"
+
+  {{- if and .Values.sentry.enabled .Values.sentry.env }}
+  SENTRY_ENVIRONMENT: {{ .Values.sentry.env }}
+  SENTRY_RELEASE: "{{ .Values.sentry.env }}-{{ .Values.image.tag }}"
+  {{- else if and .Values.global.databand.sentry.enabled .Values.global.databand.sentry.env }}
+  SENTRY_ENVIRONMENT: {{ .Values.global.databand.sentry.env }}
+  SENTRY_RELEASE: "{{ .Values.global.databand.sentry.env }}-{{ .Values.image.tag }}"
+  {{- else }}
+  SENTRY_ENVIRONMENT: {{ .Release.Namespace }}
+  SENTRY_RELEASE: "{{ .Release.Namespace }}-{{ .Values.image.tag }}"
+  {{- end -}}

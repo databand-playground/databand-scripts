@@ -1,0 +1,43 @@
+
+{{- if .Values.webapp.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ template "databand.fullname" . }}-webapp
+  {{- if .Values.webapp.serviceMonitor.namespace }}
+  namespace: {{ .Values.webapp.serviceMonitor.namespace }}
+  {{- end }}
+  labels:
+    app: {{ template "databand.name" . }}-webapp
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.webapp.serviceMonitor.labels }}
+    {{- toYaml .Values.webapp.serviceMonitor.labels | nindent 4 }}
+    {{- end }}
+spec:
+  endpoints:
+  - interval: {{ .Values.webapp.serviceMonitor.interval }}
+    {{- if .Values.webapp.serviceMonitor.scrapeTimeout }}
+    scrapeTimeout: {{ .Values.webapp.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+    targetPort: webapp
+    path: {{ .Values.webapp.serviceMonitor.path }}
+    scheme: {{ .Values.webapp.serviceMonitor.scheme }}
+  jobLabel: "{{ .Release.Name }}"
+  selector:
+    matchLabels:
+      app: {{ template "databand.name" . }}
+      component: webapp
+      release: "{{ .Release.Name }}"
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- if .Values.webapp.serviceMonitor.targetLabels }}
+  targetLabels:
+{{- range .Values.webapp.serviceMonitor.targetLabels }}
+    - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-secret-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "cloudsqlinstance.fullname" . }}
+    release: {{ .Release.Name }}
+    component: cloudsqlinstance
+    chart: {{ template "cloudsqlinstance.chart" . }}
+    heritage: {{ .Release.Service }}
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["secrets"]
+  verbs: ["create", "get", "list"]

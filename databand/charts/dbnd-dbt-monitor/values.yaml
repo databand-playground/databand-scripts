@@ -1,0 +1,102 @@
+# this global section is required to template the chart independently from parent chart
+global:
+  onepassword:
+    enabled: false
+
+nodeSelector: {}
+
+affinity: {}
+
+tolerations: []
+
+replicas: 1
+
+image:
+  ##
+  ## docker-databand image
+  repository: registry.gitlab.com/databand/databand-deploy
+  ##
+  ## image tag
+  tag: v1.0.15.0
+  ##
+  ## Image pull policy
+  ## values: Always or IfNotPresent
+  pullPolicy: IfNotPresent
+  ##
+  ## image pull secret for private images
+  pullSecret: regcred.gitlab.databand
+
+imageCredentials:
+  ##
+  ## image pull server
+  registry: registry.gitlab.com
+  ##
+  ## image pull username
+  ## leave empty if you don't want to create secret
+  username: ""
+  ##
+  ## image pull password
+  password: ""
+  ##
+  ## image pull email
+  email: ""
+
+## Databand tracking server auth config
+databand_access_token: ""
+dbnd_username: ""
+dbnd_password: ""
+
+dbnd_tracking_url: ""
+
+deploymentStrategy:
+  type: Recreate
+
+## dbt Monitor Deployment's podTemplate container arguments and probes
+## We provide an ability to disable probes
+## Defined here within podTemplate.containerProbes because of https://github.com/helm/helm/issues/9136
+podTemplate:
+  containerProbes:
+    enabled: false #TODO Enable
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 8006
+      initialDelaySeconds: 15
+
+## Deployment annotations
+annotations: {}
+
+service:
+  type: ClusterIP
+  annotations: {}
+  labels: {}
+
+securityContext: {}
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "10m"
+  limits:
+    memory: "128Mi"
+    cpu: "100m"
+
+## Monitor config
+prometheus_port: 8006
+log_format: text
+
+## Sentry configuration
+sentry:
+  enabled: false
+  url: ""
+  env: ""
+
+## ServiceMonitor configuration to scrape metrics from sync-monitor (prometheus-operator) # TODO: Add Service monitor support
+serviceMonitor:
+  enabled: false
+  additionalLabels:
+    release: prometheus-operator
+  interval: 30s
+  scrapeTimeout: 10s
+  path: "/metrics"
+  scheme: http

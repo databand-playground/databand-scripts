@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ template "dbnd-datasource-monitor.fullname" . }}-deployment-env"
+  labels:
+    app.kubernetes.io/name: "{{ template "dbnd-datasource-monitor.fullname" . }}"
+    app.kubernetes.io/managed-by: "{{ .Release.Service }}"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+data:
+
+  ## Force UTC timezone
+  TZ: Etc/UTC
+  {{- if .Values.dbnd_tracking_url }}
+  DBND__CORE__DATABAND_URL: "{{ .Values.dbnd_tracking_url }}"
+  {{ else }}
+  DBND__CORE__DATABAND_URL: "http://{{ .Release.Name }}-tracking.{{ .Release.Namespace }}:8091"
+  {{- end }}
+
+  DBND__DATASOURCE_MONITOR__PROMETHEUS_PORT: "{{ .Values.prometheus_port }}"
+  DBND__DATASOURCE_MONITOR__INTERVAL: "{{ .Values.interval }}"
+  DBND__DATASOURCE_MONITOR__LOG_FORMAT: "{{ .Values.log_format }}"
+
+  {{- if eq .Values.newrelic.enabled true }}
+  NEW_RELIC_APP_NAME: "{{ .Values.newrelic.app_name }}"
+  NEW_RELIC_DISTRIBUTED_TRACING_ENABLED: "{{ .Values.newrelic.distributed_tracing }}"
+  NEW_RELIC_ENVIRONMENT: "{{ .Values.newrelic.environment }}"
+  {{- end -}}
+
+  {{- if and .Values.sentry.enabled .Values.sentry.env }}
+  SENTRY_ENVIRONMENT: {{ .Values.sentry.env }}
+  SENTRY_RELEASE: "{{ .Values.sentry.env }}-{{ .Values.image.tag }}"
+  {{- else if and .Values.global.databand.sentry.enabled .Values.global.databand.sentry.env }}
+  SENTRY_ENVIRONMENT: {{ .Values.global.databand.sentry.env }}
+  SENTRY_RELEASE: "{{ .Values.global.databand.sentry.env }}-{{ .Values.image.tag }}"
+  {{- else }}
+  SENTRY_ENVIRONMENT: {{ .Release.Namespace }}
+  SENTRY_RELEASE: "{{ .Release.Namespace }}-{{ .Values.image.tag }}"
+  {{- end -}}

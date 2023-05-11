@@ -1,0 +1,30 @@
+Congratulations. You have just deployed Databand
+
+{{- if .Values.ingress.external.enabled }}
+URL to Databand:
+
+    - Web UI: http://{{ .Values.ingress.external.web.host }}/
+
+{{- else if .Values.ingress.enabled }}
+
+URL to Databand:
+    - Web UI: http://{{ .Values.ingress.web.host }}/
+
+{{- else if or (contains "NodePort" .Values.web.service.type) (contains "ClusterIP" .Values.web.service.type) }}
+
+1. Access the Databand Web UI by running these commands:
+
+   export SERVICE_NAME=$(kubectl get svc --namespace {{ .Release.Namespace }} -l "component=web,app={{ template "databand.name" . }}" -o jsonpath="{.items[0].metadata.name}")
+   kubectl port-forward --namespace {{ .Release.Namespace }} svc/$SERVICE_NAME {{ .Values.web.service.servicePort }}:{{ .Values.web.service.servicePort }}
+
+   Databand Web UI is available in your web browser via http://127.0.0.1:{{ .Values.web.service.servicePort }}
+
+{{- else if contains "LoadBalancer"  .Values.web.service.type }}
+
+   NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+         You can watch the status of the service by running 'kubectl get svc -w {{ template "databand.fullname" . }}'
+   export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ template "databand.fullname" . }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+   echo http://$SERVICE_IP/
+
+2. Open Databand Web UI in your web browser
+{{- end }}

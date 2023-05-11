@@ -1,0 +1,13 @@
+apiVersion: v2
+version: 0.2.9
+appVersion: "1.0.25.11"
+name: dbnd-datasource-monitor
+
+description: Helm Chart for databand datasource-monitor
+home: https://databand.ai
+maintainers:
+  - name: Evgeny Shulman
+    email: evgeny.shulman@databand.ai
+
+keywords:
+  - dbnd-datasource-monitor

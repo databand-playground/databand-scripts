@@ -1,0 +1,55 @@
+{{- if .Values.cfMonitor.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+    release: {{ .Release.Name }}
+    component: cf-worker-healthcheck
+    chart: {{ .Chart.Name }}
+    chart-version: {{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      component: cf-worker-healthcheck
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        component: cf-worker-healthcheck
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: cf-worker-healthcheck
+        image: alpine/curl:3.14
+        command:
+          - sh
+          - -c
+          - |
+            apk add jq
+
+            {{- if .Values.domain }}
+            export URL=https://{{ .Values.domain }}/api/v1/tracking/cf-health
+            {{- else }}
+            export URL=https://{{ .Values.clientName }}.databand.ai/api/v1/tracking/cf-health
+            {{- end }}
+
+            while :; do
+            (set -x; curl -s $URL) | jq '.'
+            echo ""
+            echo "Waiting 60s before the next healthcheck..."
+            sleep 60;
+            done
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+{{- end }}

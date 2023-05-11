@@ -1,0 +1,135 @@
+{{- if .Values.databand.initdb.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "databand.fullname" . }}-dbnd-web-migration-{{ .Release.Revision }}
+  labels:
+    app: {{ template "databand.fullname" . }}
+    release: {{ .Release.Name }}
+    component: databand
+    baseComponent: dbnd-web-migration
+    chart: {{ template "databand.chart" . }}
+    heritage: {{ .Release.Service }}
+{{- if .Values.cloudsqlinstance.argocd.enabled }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded, BeforeHookCreation
+{{- end }}
+spec:
+  backoffLimit: 2  # means retry once if the migrations fail
+  template:
+    metadata:
+      name: {{ template "databand.fullname" . }}-dbnd-web-migration
+    spec:
+      restartPolicy: Never
+      {{- if .Values.databand.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.databand.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.databand.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.databand.podSecurityContext | indent 8 }}
+      {{- end }}
+      {{- if .Values.global.databand.image.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.databand.image.pullSecret }}
+        {{- if .Values.global.databand.image.additionalPullSecret }}
+        - name: {{ .Values.global.databand.image.additionalPullSecret }}
+        {{- end }}
+      {{- end }}
+{{ if or .Values.postgresql.enabled .Values.sql_alchemy_conn.existingSecret.name }}
+      initContainers:
+      - name: wait-postgres
+        {{- if .Values.databand.initContainers.securityContext }}
+        securityContext:
+{{ toYaml .Values.databand.initContainers.securityContext | indent 12 }}
+        {{- end }}
+        image: {{ .Values.databand.initdb.job.initContainers.wait_postgres.busybox.image.repository }}:{{ .Values.databand.initdb.job.initContainers.wait_postgres.busybox.image.tag }}
+        {{- if not .Values.postgresql.enabled }}
+        command: ['sh', '-c', 'for i in $(seq 1 200); do nc -z -w3 {{ .Values.sql_alchemy_conn.host }} 5432 && exit 0 || sleep 3; done; exit 1']
+        {{- else }}
+        command: ['sh', '-c', 'for i in $(seq 1 200); do nc -z -w3 {{ template "databand.postgresql.fullname" . }} 5432 && exit 0 || sleep 3; done; exit 1']
+        {{- end }}
+        resources:
+{{ toYaml .Values.databand.initContainers.resources | indent 10 }}
+{{ else if .Values.cloudsqlinstance.enabled }}
+      initContainers:
+      - name: wait-postgres
+        {{- if .Values.databand.initContainers.securityContext }}
+        securityContext:
+{{ toYaml .Values.databand.initContainers.securityContext | indent 10 }}
+        {{- end }}
+        image: {{ .Values.databand.initdb.job.initContainers.wait_postgres.postgres.image.repository }}:{{ .Values.databand.initdb.job.initContainers.wait_postgres.postgres.image.tag }}
+        {{- if .Values.global.databand.image.pullPolicy }}
+        imagePullPolicy: {{ .Values.global.databand.image.pullPolicy}}
+        {{- end }}
+        command:
+            - bash
+            - -c
+            - |
+              for i in $(seq 1 300); do nc -z -w3 $CLOUDSQL_HOST 5432 || sleep 3; done && \
+              for i in $(seq 1 300); do psql -U postgres -h $CLOUDSQL_HOST -lqt | cut -d \| -f 1 | grep -qw databand || sleep 3; done
+        resources:
+{{ toYaml .Values.databand.initContainers.resources | indent 10 }}
+        env:
+        - name: CLOUDSQL_HOST
+          valueFrom:
+            secretKeyRef:
+              name: cloudsqlpostgresql-conn
+              key: endpoint
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsqlpostgresql-conn
+              key: password
+{{ end }}
+      containers:
+        - name: dbnd-web-migration
+          {{- if .Values.databand.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.databand.containerSecurityContext | indent 12 }}
+          {{- end }}
+          image: {{ .Values.global.databand.image.repository }}/dbnd-webserver:python-{{ .Values.global.databand.image.tag }}
+          {{- if .Values.global.databand.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.databand.image.pullPolicy}}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: "databand-env"
+          env:
+            {{- include "databand.mapenvsecrets" . | indent 10 }}
+          resources:
+{{ toYaml .Values.databand.initdb.job.resources | indent 12 }}
+          volumeMounts:
+            - name: dbnd-prom
+              mountPath: /dbnd/prom
+          {{- $secretsDir := .Values.web.secretsDir -}}
+          {{- range .Values.web.secrets }}
+            - name: {{ . }}-volume
+              readOnly: true
+              mountPath: {{ $secretsDir }}/{{ . }}
+          {{- end }}
+          {{- range .Values.databand.extraConfigmapMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+              {{ if .subPath }}
+              subPath: {{ .subPath }}
+              {{ end }}
+          {{- end }}
+{{- if .Values.databand.extraVolumeMounts }}
+{{ toYaml .Values.databand.extraVolumeMounts | indent 12 }}
+{{- end }}
+          args:
+            - "bash"
+            - "-c"
+            - >
+              set -e;
+              echo "executing db init";
+              dbnd-web db init --migration-timeout {{ .Values.databand.initdb.timeout }};
+              dbnd-web celery stop-obsolete-workers;
+{{- end }}
+      volumes:
+        - name: dbnd-prom
+          emptyDir: {}

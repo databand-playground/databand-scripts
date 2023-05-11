@@ -1,0 +1,52 @@
+annotations:
+  namespace: databand-system
+apiVersion: v2
+appVersion: 1.0.25.11
+dependencies:
+- condition: postgresql.enabled
+  name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 11.6.2
+- condition: prometheus.enabled
+  name: prometheus
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 15.17.0
+- condition: prometheus-postgres-exporter.enabled
+  name: prometheus-postgres-exporter
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 2.10.1
+- condition: dbnd-datasource-monitor.enabled
+  name: dbnd-datasource-monitor
+  repository: file://subcharts/dbnd-datasource-monitor
+  version: 0.2.9
+- condition: dbnd-dbt-monitor.enabled
+  name: dbnd-dbt-monitor
+  repository: file://subcharts/dbnd-dbt-monitor
+  version: 0.1.4
+- condition: dbnd-datastage-monitor.enabled
+  name: dbnd-datastage-monitor
+  repository: file://subcharts/dbnd-datastage-monitor
+  version: 0.1.4
+- condition: dbnd-cloud-queue.enabled
+  name: dbnd-cloud-queue
+  repository: file://subcharts/dbnd-cloud-queue
+  version: 1.0.78
+- condition: cloudsqlinstance.enabled
+  name: cloudsqlinstance
+  repository: file://subcharts/cloudsqlinstance
+  version: 0.2.5
+- condition: cloudmemorystore.enabled
+  name: cloudmemorystore
+  repository: file://subcharts/cloudmemorystore
+  version: 0.1.0
+- condition: redis.enabled
+  name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 17.3.16
+description: A Helm chart for databand kubernetes deployment
+home: https://databand.ai
+maintainers:
+- email: evgeny.shulman@databand.ai
+  name: Evgeny Shulman
+name: databand
+version: 1.0.25-11

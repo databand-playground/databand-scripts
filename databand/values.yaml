@@ -1,0 +1,1228 @@
+# Declare variables to be passed into your templates.
+# Duplicate if you need to customize!
+# This is a YAML-formatted file.
+
+global:
+  databand:
+    image:
+      ##
+      ## docker-databand image
+      repository: registry.gitlab.com/databand/databand-deploy
+      ##
+      ## image tag
+      tag: v1.0.25.11
+      ##
+      ## Image pull policy
+      ## values: Always or IfNotPresent
+      pullPolicy: IfNotPresent
+      ##
+      ## image pull secret for private images
+      pullSecret: regcred.gitlab.databand
+      ## If you need to pull init containers from different private registry
+      additionalPullSecret: ""
+    imageCredentials:
+      ##
+      ## image pull server
+      registry: registry.gitlab.com
+      ##
+      ## image pull username
+      ## leave empty if you don't want to create secret and use existent one specified via global.databand.image.pullSecret
+      username:
+      ##
+      ## image pull password
+      ## leave empty if you don't want to create secret and use existent one specified via global.databand.image.pullSecret
+      password:
+      ##
+      ## image pull annotations
+      annotations: {}
+
+    ## Sentry configuration
+    sentry:
+      enabled: false
+      url: ""
+      env: ""
+
+  # Enable automation for secrets(passwords)
+  # Would be created in 1password
+  onepassword:
+    enabled: false
+    vault:
+      ui: ""
+      db:
+        rw: ""
+        ro: ""
+    secret:
+      annotations: {}
+    jobs:
+      db_secret:
+        annotations: {}
+      redis_secret:
+        annotations: {}
+      user_secret:
+        annotations: {}
+      new_relic_http_probe:
+        annotations: {}
+
+  ## Global Pod SecurityContext which can be accessed by databand subcharts, such as dbnd-datasource-monitor
+  ## Pod SecurityContext context for all databand pods
+  ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+  podSecurityContext: {}
+
+  ## Global container SecurityContext which can be accessed by databand subcharts, such as dbnd-datasource-monitor
+  ## Container SecurityContext context for all databand containers
+  ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container
+  containerSecurityContext:
+    {}
+    # allowPrivilegeEscalation: false
+    # seccompProfile:
+    #   type: RuntimeDefault
+    # capabilities:
+    #   drop:
+    #     - ALL
+
+databand:
+  ##
+  ## You will need to define your fernet key:
+  ## Generate fernet_key with:
+  ##    dd if=/dev/urandom bs=32 count=1 2>/dev/null | openssl base64
+  ## fernet_key: ABCDABCDABCDABCDABCDABCDABCDABCDABCDABCD
+  fernetKey: "qOUpd5Mjzzt6E6G9m7_EViAiWqXiN-GMrVvfBzOGluc="
+  ##
+  ## Global (all main Databand components - web, tracking, webapp) high availability
+  ha:
+    enabled: false
+    replicaCount: 2
+  service:
+    type: ClusterIP
+
+  custom_external_url: ""
+
+  nodeSelector: {}
+
+  ## Pod SecurityContext context for all databand pods defined in the chart
+  ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+  podSecurityContext: {}
+
+  ## Container SecurityContext context for all databand containers defined in the chart
+  ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container
+  containerSecurityContext:
+    {}
+    # allowPrivilegeEscalation: false
+    # seccompProfile:
+    #   type: RuntimeDefault
+    # capabilities:
+    #   drop:
+    #     - ALL
+
+  ## Init containers configuration
+  initContainers:
+    resources:
+      requests:
+        memory: "20Mi"
+        cpu: "0.01"
+      limits:
+        cpu: "0.1"
+        memory: "100Mi"
+    wait_web:
+      image:
+        repository: busybox
+        tag: 1.28.4
+
+    ## Container SecurityContext context for all databand init containers defined in the chart
+    ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container
+    securityContext:
+      {}
+      # allowPrivilegeEscalation: false
+      # seccompProfile:
+      #   type: RuntimeDefault
+      # runAsNonRoot: true
+      # capabilities:
+      #   drop:
+      #     - ALL
+
+  ## Disable subdag tracking
+  disable_subdag_tracking:
+    enabled: false
+
+  # Store tracking events to GCS
+  gcs_tracking_log_bucket: ""
+
+  ## Custom databand configuration environment variables
+  ## Use this to override any databand setting settings defining environment variables in the
+  ## following form: DBND__<section>__<key>.
+  ## Example:
+  ##   config:
+  ##     DBND__CORE__EXPOSE_CONFIG: "True"
+  ##     HTTP_PROXY: "http://proxy.mycompany.com:123"
+  config:
+    DBND__FEATURES_FLAGS__UI_DATA_TARGETS: "true"
+    DBND__FEATURES_FLAGS__UI_AUTO_RUN_DURATION_ML_ALERT: "false"
+    DBND__FEATURES_FLAGS__UI_DBT_INTEGRATION: "false"
+    DBND__FEATURES_FLAGS__UI_BIG_QUERY_INTEGRATION: "true"
+    DBND__FEATURES_FLAGS__UI_DATA_SOURCES_INTEGRATION: "true"
+    DBND__FEATURES_FLAGS__UI_INTEGRATION_FLOW_ENABLED: "true"
+    DBND__FEATURES_FLAGS__DELAY_DBT_DATASETS_REPORT: "true"
+    # install mysql at pods startup, double check to set global.databand.securityContext to run
+    # pods as root user to allow `apt-get update``
+    INSTALL_MYSQL: "false"
+
+  ##
+  ## Run initdb when the web starts.
+  initdb:
+    enabled: true
+    ## Timeout for running dbnd-web migration in dbnd-web-migration Job
+    timeout: 3600 # 1h in seconds, 0 - no timeout
+    ## Timeout for waiting until DB pass validation in other containers (dbnd-web and dbnd-tracking)
+    wait_timeout: 3600 # 1h in seconds, 0 - no timeout
+    job:
+      resources:
+        requests:
+          cpu: "0.1"
+          memory: "1200Mi"
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+      initContainers:
+        wait_postgres:
+          busybox:
+            image:
+              repository: busybox
+              tag: 1.28.4
+          postgres:
+            image:
+              repository: postgres
+              tag: 12.8-alpine
+
+  alert:
+    ## Ephemeral storage on host to share between alert-def-syncer and prometheus
+    alerts_dir: /tmp/alerts
+    sync_alertmanager_config: true
+    use_alertmanager_template: true
+    collect_hours_back: 3
+    env_to_filter: []
+    use_rule_system: true
+
+  amplitude:
+    apikey: ""
+
+  ## Google Tag Manager configuration
+  gtm:
+    enabled: false
+    container_id: ""
+
+  ## Log Format to use json/text
+  log_format: text
+
+  ## NewRelic configuration
+  newrelic:
+    enabled: false
+    license_key: ""
+    app_name: ""
+    distributed_tracing: true
+    environment: ""
+    synthetic_http_probe:
+      enabled: false
+      job_annotations: {}
+      frequency: 1
+      # locations array values should be quoted
+      locations: []
+
+  smtp:
+    enabled: false
+    # e-mail address from which e-mail alerts will be send
+    smtp_email_from: ""
+    # smtp server hostname
+    smtp_hostname: ""
+    # smtp username
+    smtp_apikey_or_username: ""
+    # smtp password
+    smtp_token_or_password: ""
+    # support smtp receivers without username and token
+    smtp_local_machine_enabled: false
+
+  ## CloudFlare configuration
+  cloudflare:
+    enabled: false
+    api_token: ""
+
+## External DB configuration
+## postgresql+psycopg2://username:${PS_PASSWORD}@dbhost:5432/dbname
+## mysql://username:${MYSQL_PASSWORD}@dbhost:3306/dbname
+sql_alchemy_conn:
+  protocol: ""
+  username: ""
+  password: ""
+  host: ""
+  port: ""
+  dbname: ""
+  existingSecret:
+    name: ""
+    secretKeys:
+      userPasswordKey: ""
+
+dbnd-datasource-monitor:
+  enabled: false
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "356Mi"
+      cpu: "500m"
+  databand_access_token: ""
+  dbnd_username: ""
+  dbnd_password: ""
+
+dbnd-dbt-monitor:
+  enabled: false
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "356Mi"
+      cpu: "500m"
+  databand_access_token: ""
+  dbnd_username: ""
+  dbnd_password: ""
+
+dbnd-datastage-monitor:
+  enabled: false
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "356Mi"
+      cpu: "500m"
+  databand_access_token: ""
+  dbnd_username: ""
+  dbnd_password: ""
+
+ml_trainer:
+  enabled: true
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "10m"
+    limits:
+      cpu: "100m"
+      memory: "256Mi"
+
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+rule_engine:
+  enabled: true
+  minReadySeconds: "30"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      cpu: "1"
+      memory: "512Mi"
+
+  service:
+    servicePort: 8008
+
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+  serviceMonitor:
+    enabled: false
+    labels:
+      release: prometheus-operator
+    interval: 30s
+    scrapeTimeout: 10s
+    path: "/metrics"
+    scheme: http
+
+web:
+  ## Number of replicas for web server.
+  replicaCount: 1
+  podDisruptionBudget:
+    minAvailable: 1
+
+  env: ""
+  secret_key: ""
+
+  gunicorn:
+    worker_class: sync
+    workers: 1
+    threads: 10
+
+  service:
+    type: ClusterIP
+    servicePort: 8090
+
+    ## Uncomment it to pin web service to specific node port, service type must be NodePort
+    # nodePort: 31390
+
+  statics:
+    serving_enabled: true
+    sync_webapp_all: true
+
+  enable_internal_swagger_ui: false
+  enable_internal_pseudo_data_api: false
+  enable_dataset_with_partition: false
+  enable_lineage_with_execution_data: false
+
+  ab_auth:
+    external_jwt_public_key: ""
+    enable_tracking_auth: false
+    # PubSub Push subcriber should be configured with this Service account email to pass auth
+    pubsub_service_account_email: ""
+    # defined in CI env vars
+    oauth2_providers: "[]"
+    # oauth
+    ## github
+    github_key: ""
+    github_secret: ""
+    ## gitlab
+    gitlab_key: ""
+    gitlab_secret: ""
+    ## okta
+    okta_key: ""
+    okta_secret: ""
+    okta_base_url: ""
+    # saml
+    saml:
+      enabled: false
+      provider_name: ""
+      entityid: ""
+      metadata_url: ""
+
+  default_user:
+    disabled: false
+    role: "Support"
+    username: "databand"
+    email: "support@databand.ai"
+    firstname: "Databand"
+    lastname: "Support"
+    password: "databand"
+
+  minReadySeconds: "30"
+  resources:
+    requests:
+      cpu: "0.1"
+      memory: "1200Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+  ## Support Node, affinity and tolerations for web pod assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#taints-and-tolerations-beta-feature
+  nodeSelector: {}
+
+  affinity: {}
+
+  tolerations: []
+  ##
+  ## Directory in which to mount secrets on webserver nodes.
+  secretsDir: /var/databand/secrets
+  ##
+  ## Secrets which will be mounted as a file at `secretsDir/<secret name>`.
+  secrets: []
+  ##
+  ## ServiceMonitor configuration to scrape metrics from web(prometheus-operator)
+  serviceMonitor:
+    enabled: false
+    labels:
+      release: prometheus-operator
+    interval: 30s
+    scrapeTimeout: 10s
+    path: "/api/internal/v1/dbnd_tracking_metrics"
+    scheme: http
+    # additional endpoint with internal application metrics
+    application_metrics:
+      enabled: false
+      path: "/api/internal/v1/dbnd_application_metrics"
+      metricRelabelings:
+        []
+        # - action: labeldrop
+        #   regex: instance|pod
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8090"
+
+webapp:
+  ## Number of replicas for webapp service.
+  replicaCount: 1
+
+  podDisruptionBudget:
+    minAvailable: 1
+
+  # Since we mount webapp-builds in volumeMounts, we need to set fsGroup
+  # to instruct kubelet to mount the directory from nginx user. Then our entrypoint script can perform builds check logic
+  # without permission issues
+  podSecurityContext:
+    fsGroup: 10001
+
+  resources:
+    requests:
+      cpu: "20m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+  # TODO: add nginx monitoring
+  serviceMonitor:
+    enabled: false
+
+  nodeSelector: {}
+
+  affinity: {}
+
+  tolerations: []
+
+  ## Storage configuration for spa builds
+  persistence:
+    ##
+    ## enable persistance storage
+    enabled: true
+    ##
+    ## Existing claim to use
+    # existingClaim: nil
+    ## Existing claim's subPath to use, e.g. "spa" (optional)
+    # subPath: ""
+    ##
+    ## Persistent Volume Storage Class
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, AWS & OpenStack)
+    accessMode: ReadWriteOnce
+    ##
+    ## Persistant storage size request
+    size: 4Gi
+
+  service:
+    servicePort: 80
+  ## Uncomment it to pin webapp service to specific node port, service type must be NodePort
+  #   nodePort: 31392
+
+celery:
+  worker:
+    ## Number of replicas for celeryworker service.
+    replicaCount: 1
+
+    minReadySeconds: "30"
+    resources:
+      requests:
+        cpu: "800m"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "2Gi"
+
+    servicePort: 8095
+
+    serviceMonitor:
+      enabled: false
+      labels:
+        release: prometheus-operator
+      interval: 30s
+      scrapeTimeout: 10s
+      path: "/metrics"
+      scheme: http
+
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8095"
+
+    nodeSelector: {}
+
+    affinity: {}
+
+    tolerations: []
+  beat:
+    ## Number of replicas for celerybeat service.
+    replicaCount: 1
+
+    minReadySeconds: "30"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "1Gi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+
+    nodeSelector: {}
+
+    affinity: {}
+
+    tolerations: []
+  flower:
+    image:
+      repository: mher/flower
+      tag: 0.9.7
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: "25m"
+        memory: "30Mi"
+      limits:
+        cpu: "200m"
+        memory: "128Mi"
+    service:
+      servicePort: 5555
+    serviceMonitor:
+      enabled: false
+      labels:
+        release: prometheus-operator
+      interval: 30s
+      scrapeTimeout: 10s
+      path: "/metrics"
+      scheme: http
+
+tracking:
+  ## Number of replicas for tracking service.
+  replicaCount: 1
+
+  podDisruptionBudget:
+    minAvailable: 1
+
+  minReadySeconds: "10"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+  serviceMonitor:
+    enabled: false
+    labels:
+      release: prometheus-operator
+    interval: 30s
+    scrapeTimeout: 10s
+    path: "/api/internal/v1/dbnd_tracking_metrics"
+    scheme: http
+
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8091"
+
+  service:
+    servicePort: 8091
+  ## Uncomment it to pin tracking service to specific node port, service type must be NodePort
+  #   nodePort: 31391
+
+  nodeSelector: {}
+
+  affinity: {}
+
+  tolerations: []
+
+  secretsDir: /var/databand/secrets
+  secrets: []
+
+##
+## Ingress configuration
+ingress:
+  ##
+  ## enable ingress
+  ## Note: If you want to change url prefix for web ui  even if you do not use ingress,
+  ## you can still change ingress.web.path
+  enabled: false
+  # pathType is only for k8s >= 1.18
+  pathType: Prefix
+  # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
+  # See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#specifying-the-class-of-an-ingress
+  # ingressClassName: nginx-internal
+  #
+  # Optional BackendConfig configuration for internal GKE Ingress
+  # See https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-features#configuring_ingress_features_through_backendconfig_parameters
+  backendconfig:
+    enabled: false
+    spec:
+      {}
+      # securityPolicy:
+      #   name: "ip-allow-list"
+  ##
+  ## Configure the webserver endpoint
+  web:
+    paths: ["/"]
+    ##
+    ## hostname for the webserver
+    host: ""
+    ##
+    ## Annotations for the webserver
+    ## webserver handles relative path completely, just let your load balancer give the HTTP
+    ## header like the requested URL (no special configuration neeed)
+    annotations:
+      {}
+      ##
+      ## Example for Nginx:
+      # kubernetes.io/ingress.class: nginx
+      # nginx.ingress.kubernetes.io/proxy-body-size: 16m
+      # nginx.ingress.kubernetes.io/proxy-read-timeout: 400
+    ##
+    ## Configure the web liveness path.
+    ## Defaults to the templated value `{{ ingress.web.path }}/health`
+    livenessPath:
+    tls:
+      ## Set to "true" to enable TLS termination at the ingress
+      enabled: false
+      ## If enabled, set "secretName" to the secret containing the TLS private key and certificate
+      ## Example:
+      ## secretName: example-com-crt
+  tracking:
+    paths:
+      [
+        "/api/v1/tracking/",
+        "/api/v1/tracking-pubsub/",
+        "/api/v1/tracking-monitor/",
+      ]
+  webapp:
+    paths: ["/statics"]
+  # Ability to provide additional ingress configuration
+  # For example you want databand be available as external and internal DNS name
+  external:
+    enabled: false
+    # pathType is only for k8s >= 1.18
+    pathType: Prefix
+    # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
+    # See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#specifying-the-class-of-an-ingress
+    # ingressClassName: nginx-external
+    #
+    # Optional BackendConfig configuration for external GKE Ingress
+    # See https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-features#configuring_ingress_features_through_backendconfig_parameters
+    backendconfig:
+      enabled: false
+      spec:
+        {}
+        # securityPolicy:
+        #   name: "ip-allow-list"
+    web:
+      paths: ["/"]
+      host: ""
+      annotations:
+        {}
+        ##
+        ## Example for Nginx:
+        # kubernetes.io/ingress.class: nginx-external
+        # nginx.ingress.kubernetes.io/proxy-body-size: 16m
+        # nginx.ingress.kubernetes.io/proxy-read-timeout: 400
+      livenessPath:
+      tls:
+        enabled: false
+    tracking:
+      paths:
+        [
+          "/api/v1/tracking/",
+          "/api/v1/tracking-pubsub/",
+          "/api/v1/tracking-monitor/",
+        ]
+    webapp:
+      paths: ["/statics"]
+
+# Network policy configuration
+networkPolicy:
+  ## networkPolicy.enabled Enable creation of NetworkPolicy resources
+  ##
+  enabled: false
+  ## When set to false, only pods with the correct label will have network access
+  ##
+  ingress:
+    ## networkPolicy.ingress.allowInNamespace
+    ## Don't require label for connections
+    ## Ingress traffic from any pod in the namespace will be allowed
+    allowInNamespace: true
+    ## networkPolicy.ingress.allowExternal
+    ## Ingress traffic from any endpoint outside cluster will be allowed
+    allowExternal: false
+    ## networkPolicy.extraIngress Add extra ingress rules to the NetworkPolicy
+    ## e.g:
+    ## extraIngress:
+    ##   - ports:
+    ##       - port: 1234
+    ##     from:
+    ##       - podSelector:
+    ##           - matchLabels:
+    ##               - component: tracking
+    ##       - podSelector:
+    ##           - matchExpressions:
+    ##               - key: component
+    ##                 operator: In
+    ##                 values:
+    ##                   - tracking
+    ##
+    extraIngress: []
+
+  egress:
+    ## networkPolicy.egress.allowInNamespace
+    ## Don't require label for connections
+    ## Egress traffic from any pod in the namespace will be allowed
+    allowInNamespace: true
+    ## networkPolicy.egress.allowExternal
+    ## Egress traffic to any endpoint outside cluster will be allowed
+    allowExternal: true
+    ## networkPolicy.extraEgress Add extra egress rules to the NetworkPolicy
+    ## e.g:
+    ## extraEgress:
+    ##   - ports:
+    ##       - port: 1234
+    ##     to:
+    ##       - podSelector:
+    ##           - matchLabels:
+    ##               - component: tracking
+    ##       - podSelector:
+    ##           - matchExpressions:
+    ##               - key: component
+    ##                 operator: In
+    ##                 values:
+    ##                   - tracking
+    ##
+    extraEgress: []
+
+##
+## Configure logs
+logs:
+  path: /app/.dbnd/logs
+
+##
+## Create or use ServiceAccount
+serviceAccount:
+  ##
+  ## Specifies whether a ServiceAccount should be created
+  create: true
+  ## The name of the ServiceAccount to use.
+  ## If not set and create is true, a name is generated using the fullname template
+  name:
+
+redis:
+  ##
+  ## Use the Redis chart dependency.
+  ## Set to false if bringing your own Redis or another in-memory store.
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/redis
+    tag: 6.2.6-debian-10-r103
+
+  architecture: standalone
+  auth:
+    password: "secret"
+  master:
+    containerPorts:
+      redis: 6379
+
+## Specify external in-memory store, instead of local bitnami Redis
+inmemorystore:
+  host: ""
+  port: ""
+  password: ""
+  existingSecret:
+    name: ""
+    secretKeys:
+      passwordKey: ""
+
+## Configuration values for the postgresql dependency.
+## ref: https://github.com/kubernetes/charts/blob/master/stable/postgresql/README.md
+postgresql:
+  ##
+  ## Use the PostgreSQL chart dependency.
+  ## Set to false if bringing your own PostgreSQL.
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/postgresql
+    tag: 12.11.0
+
+  auth:
+    # ##
+    # ## auth.existingSecret Name of existing secret to use for PostgreSQL credentials. `auth.postgresPassword`, `auth.password`, and `auth.replicationPassword` will be ignored and picked up from this secret. The secret might also contains the key `ldap-password` if LDAP is enabled. `ldap.bind_password` will be ignored and picked from this secret in this case.
+    # ##
+    # existingSecret: ""
+    ## auth.secretKeys.adminPasswordKey Name of key in existing secret to use for PostgreSQL credentials. Only used when `auth.existingSecret` is set.
+    ## auth.secretKeys.userPasswordKey Name of key in existing secret to use for PostgreSQL credentials. Only used when `auth.existingSecret` is set.
+    ##
+    secretKeys:
+      userPasswordKey: postgres-password
+
+    ## PostgreSQL User to create.
+    username: databand
+    ##
+    ## PostgreSQL Password for the new user.
+    ## If not set, a random 10 characters password will be used.
+    password: databand
+    ##
+    ## PostgreSQL Database to create.
+    database: databand
+    ## auth.postgresPassword Password for the "postgres" admin user. Ignored if `auth.existingSecret` with key `postgres-password` is provided
+    ##
+    postgresPassword: databand
+  primary:
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1500m"
+    ##
+    ## Persistent Volume Storage configuration.
+    ## ref: https://kubernetes.io/docs/user-guide/persistent-volumes
+    persistence:
+      ##
+      ## Enable PostgreSQL persistence using Persistent Volume Claims.
+      enabled: true
+      ##
+      ## Persistant class
+      # storageClass: classname
+      ##
+      ## Access mode:
+      accessModes:
+        - ReadWriteOnce
+      size: 16Gi
+    initdb:
+      ## PostgreSQL user to execute the .sql and sql.gz scripts
+      user: postgres
+      ## Password for the user specified in initdbUser
+      password: databand
+      ## Dictionary of initdb scripts
+      # scriptsConfigMap: "postgresql-init-scripts"
+      scripts:
+        init.sql: |
+          ALTER USER databand WITH SUPERUSER;
+        init_stats.sql: |
+          CREATE EXTENSION pg_stat_statements;
+    service:
+      ports:
+        postgresql: 5432
+  postgresqlSharedPreloadLibraries: "pgaudit, pg_stat_statements"
+
+## ref: https://github.com/prometheus-community/helm-charts/tree/main/charts/prometheus-postgres-exporter
+prometheus-postgres-exporter:
+  enabled: false
+  rbac:
+    pspEnabled: false
+  serviceMonitor:
+    enabled: false
+    interval: 60s
+    timeout: 30s
+    labels:
+      release: prometheus-operator
+  resources:
+    requests:
+      memory: "220Mi"
+      cpu: "200m"
+    limits:
+      memory: "250Mi"
+      cpu: "2"
+  config:
+    datasourceSecret:
+      name: prometheus-postgres-exporter-secret
+      key: data_source_name
+    externalQueries:
+      enabled: false
+
+## Configuration values for the Prometheus dependency.
+# https://github.com/prometheus-community/helm-charts/tree/main/charts/prometheus
+prometheus:
+  imagePullSecrets:
+    - name: regcred.gitlab.databand
+  enabled: false
+  podSecurityPolicy:
+    enabled: false
+  nameOverride: prometheus
+  nodeExporter:
+    enabled: false
+  pushgateway:
+    enabled: false
+  serviceAccounts:
+    server:
+      create: false
+      name: dbnd-alertmanager-cm
+  alertmanager:
+    # fullnameOverride: alertmanager
+    enabled: false
+    image:
+      repository: quay.io/prometheus/alertmanager
+      tag: v0.24.0
+    serviceMonitor:
+      enabled: false
+      labels:
+        release: prometheus-operator
+      interval: 30s
+      scrapeTimeout: 10s
+    strategy:
+      type: Recreate
+    logLevel: "info"
+    service:
+      servicePort: 9093
+    ## Defining configMapOverrideName will cause templates/alertmanager-configmap.yaml
+    ## from Prometheus dependency chart to NOT generate a ConfigMap resource
+    ## see https://github.com/prometheus-community/helm-charts/blob/2f06afb21056c1d665984f209cd76541fe1b593d/charts/prometheus/values.yaml#L88
+    ## We set configMapOverrideName since we generate our own ConfigMap with AlertManager config from alertmanagerFiles
+    configMapOverrideName: dbnd-alertmanager
+    alertmanagerFiles:
+      alertmanager.yml: |-
+        route:
+          receiver: "databand"
+          routes:
+            - receiver: "databand"
+              group_wait: 1s
+              group_interval: 5s
+              repeat_interval: 30s
+              match:
+                is_dbnd_internal: "true"
+              continue: false # skip next receivers
+        receivers:
+          - name: "databand"
+            webhook_configs:
+              - url: http://{{ template "databand.fullname" . }}-web.{{ .Release.Namespace }}:8090/api/internal/v1/alertmanager_webhook
+                send_resolved: false
+        templates:
+          - /etc/config/notifications.tmpl
+          - /etc/config/email.tmpl    #  WE CAN NOT COMMENT OUT PARTS OF |- string.
+    #  PLEASE DELETE WHOLE SECTION ABOVE
+    # route:
+    #   receiver: "databand"
+    #   routes:
+    #     - receiver: "databand"
+    #       group_wait: 1s
+    #       group_interval: 5s
+    #       repeat_interval: 30s
+    #       match:
+    #         is_dbnd_internal: "true"
+    #       continue: false # skip next receivers
+    #     - receiver: 'slack'
+    #       match:
+    #         is_dbnd_internal: false
+    #       group_wait: 30s
+    #       group_interval: 5m
+    #       group_by: ['...']
+    #       repeat_interval: 1h
+    #       continue: true
+    #     - receiver: 'email'
+    #       match:
+    #         is_dbnd_internal: false
+    #       group_wait: 30s
+    #       group_interval: 5m
+    #       group_by: ['...']
+    #       repeat_interval: 1h
+    #       continue: true
+    #     - receiver: opsgenie
+    #       match:
+    #         is_dbnd_internal: false
+    #       group_wait: 10s
+    #       group_interval: 5m
+    #       group_by: ['...']
+    #       repeat_interval: 20m
+    #       continue: true
+    #     - receiver: pagerduty
+    #       match:
+    #         is_dbnd_internal: false
+    #       group_wait: 10s
+    #       group_interval: 5m
+    #       group_by: ['...']
+    #       repeat_interval: 20m
+    #       continue: true
+    # receivers:
+    #   - name: "databand"
+    #     webhook_configs:
+    #       - url: http://{{ template "databand.fullname" . }}-web.{{ .Release.Namespace }}:8090/api/internal/v1/alertmanager_webhook
+    #         send_resolved: false
+    #   - name: "slack"
+    #     slack_configs:
+    #       - api_url: "https://hooks.slack.com/services/<slack_hook>"
+    #         username: "DBND Alertmanager"
+    #         channel: "#dbnd-alerts"
+    #         icon_url: https://databand.ai/wp-content/uploads/2020/11/Icon-circle-dark-background.png
+    #         send_resolved: false
+    #         title: '{{ "{{" }} template "dbnd_title" . }}'
+    #         title_link: '{{ "{{" }} template "dbnd_titlelink" . }}'
+    #         text: '{{ "{{" }} template "dbnd_slack_message" . }}'
+    #   - name: "email"
+    #     email_configs:
+    #       - to: "receiver@example.com" # set receiver email
+    #         from: "sender@example.com" # set verified Sender Identity
+    #         smarthost: "smtp.sendgrid.net:587"
+    #         auth_username: "apikey"
+    #         auth_password: "<< API Token >>"
+    #         send_resolved: false
+    #         html: '{{ "{{" }} template "dbnd_email_message" . }}'
+    #         headers:
+    #           subject: '{{ "{{" }} template "dbnd_email_subject" . }}'
+    #   - name: "opsgenie"
+    #     opsgenie_configs:
+    #       - api_key: "<api_key>"
+    #         api_url: "https://api.eu.opsgenie.com" # For us should https://api.opsgenie.com
+    #         send_resolved: true
+    #         source: '{{ "{{" }} template "dbnd_titlelink" . }}'
+    #         description: '{{ "{{" }} template "dbnd_opsgenie_message" . }}'
+    #         message: '{{ "{{" }} template "dbnd_opsgenie_subject" . }}'
+    #   - name: "pagerduty"
+    #     pagerduty_configs:
+    #     - routing_key: "<intergration_key>"
+    #       send_resolved: true
+    #       client_url: '{{ "{{" }} template "dbnd_titlelink" . }}'
+    #       description: '{{ "{{" }} template "dbnd_title" . }}'
+    #       details:
+    #         firing: '{{ "{{" }} template "dbnd_slack_message" . }}'
+    # templates:
+    #   - /etc/config/slack_notifications_latest_only.tmpl
+    #   - /etc/config/email.tmpl
+
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "10m"
+      limits:
+        memory: "256Mi"
+        cpu: "100m"
+  kubeStateMetrics:
+    enabled: false
+  ## Set rbac.create to false to disable RBAC and use static discovery
+  rbac:
+    create: false
+  server:
+    enabled: false
+    image:
+      repository: quay.io/prometheus/prometheus
+      tag: v2.40.7
+    configMapOverrideName: dbnd-prometheus
+    strategy:
+      type: Recreate
+    enableAdminApi: true
+    service:
+      servicePort: 9090
+    logLevel: "info"
+    global:
+      scrape_interval: 10s
+      evaluation_interval: 5s
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "200m"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+    persistentVolume:
+      size: "100Gi"
+    retention: "7d"
+  configmapReload:
+    prometheus:
+      image:
+        repository: jimmidyson/configmap-reload
+        tag: v0.5.0
+      resources:
+        requests:
+          cpu: "64m"
+          memory: "64Mi"
+        limits:
+          cpu: "128m"
+          memory: "128Mi"
+    alertmanager:
+      image:
+        repository: jimmidyson/configmap-reload
+        tag: v0.5.0
+      resources:
+        requests:
+          cpu: "64m"
+          memory: "64Mi"
+        limits:
+          cpu: "128m"
+          memory: "128Mi"
+  serverFiles:
+    prometheus.yml:
+      rule_files:
+        - /data/alerts/*.yml
+      scrape_configs:
+        - job_name: prometheus
+          honor_timestamps: true
+          scrape_interval: 10s
+          scrape_timeout: 10s
+          metrics_path: /metrics
+          scheme: http
+          static_configs:
+            - targets:
+                - localhost:9090
+  extraScrapeConfigs: |-
+    - job_name: "alertmanager"
+      scrape_interval: 5s
+      scrape_timeout: 5s
+      static_configs:
+        - targets:
+            {{- if .Values.prometheus.alertmanager.fullnameOverride }}
+            - '{{ .Values.prometheus.alertmanager.fullnameOverride }}.{{ .Release.Namespace }}:9093'
+            {{- else }}
+            - '{{ template "databand.fullname" . }}-prometheus-alertmanager.{{ .Release.Namespace }}:9093'
+            {{- end }}
+
+    - job_name: "rule-engine"
+      scrape_interval: 5s
+      scrape_timeout: 5s
+      static_configs:
+        - targets:
+            - '{{ template "databand.fullname" . }}-rule-engine.{{ .Release.Namespace }}:8008'
+
+    - job_name: "postgres-exporter"
+      scrape_interval: 60s
+      scrape_timeout: 10s
+      metrics_path: "/metrics"
+      static_configs:
+        - targets:
+            - '{{ template "databand.fullname" . }}-prometheus-postgres-exporter.{{ .Release.Namespace }}'
+
+## Enable it when you want to privision CloudSQL instance
+## Applicable for GCP only
+cloudsqlinstance:
+  enabled: false
+  sqlInstanceName: ""
+  settings:
+    ipConfiguration:
+      ## Specify authorize network
+      ## https://cloud.google.com/sql/docs/postgres/authorize-networks
+      authorizedNetworks:
+        - name: ""
+          value: ""
+      privateNetwork: ""
+    ## Specify additional database flag
+    ## https://cloud.google.com/sql/docs/postgres/flags#list-flags-postgres
+    databaseFlags: []
+    ## Add argocd hooks to jobs instead of use helm hooks
+  argocd:
+    enabled: false
+  replica:
+    enabled: false
+  users:
+    readonly:
+      enabled: false
+
+## Enable it when you want to privision Memorystore Redis instance
+## Applicable for GCP only
+cloudmemorystore:
+  enabled: false
+  memorystoreInstanceName: ""
+
+## Enable blackbox serviceMonitor
+## https://github.com/prometheus/blackbox_exporter
+blackbox:
+  enabled: false
+  labels:
+    release: prometheus-operator
+  additionalMetricsRelabels: {}
+
+dbnd-cloud-queue:
+  enabled: false

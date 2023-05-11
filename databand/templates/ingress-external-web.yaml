@@ -1,0 +1,95 @@
+{{- if .Values.ingress.external.enabled -}}
+{{- $ingressApiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressSupportsIngressClassName := eq (include "ingress.supportsIngressClassName" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
+{{- $ingressPathType := .Values.ingress.external.pathType -}}
+apiVersion: {{ template "ingress.apiVersion" . }}
+kind: Ingress
+metadata:
+  name: {{ template "databand.fullname" . }}-external-web
+  labels:
+    app: {{ template "databand.name" . }}
+    component: web
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+{{- if .Values.ingress.external.web.annotations }}
+  annotations:
+    {{ range $key, $value := .Values.ingress.external.web.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+{{- end }}
+spec:
+  {{- if and $ingressSupportsIngressClassName .Values.ingress.external.ingressClassName }}
+  ingressClassName: {{ .Values.ingress.external.ingressClassName }}
+  {{- end }}
+  {{- if .Values.ingress.external.backendconfig.enabled }}
+  defaultBackend:
+    service:
+      name: {{ template "databand.fullname" . }}-webapp
+      port:
+        number: {{ .Values.webapp.service.servicePort }}
+  {{- end }}
+{{- if .Values.ingress.external.web.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.external.web.host }}
+      secretName: {{ .Values.ingress.external.web.tls.secretName }}
+{{- end }}
+  rules:
+    - http:
+        paths:
+          {{- range $path := .Values.ingress.external.web.paths }}
+          - path: {{ $path }}
+            {{- if $ingressSupportsPathType }}
+            pathType: {{ $ingressPathType }}
+            {{- end }}
+            backend:
+              {{- if $ingressApiIsStable }}
+              service:
+                name: {{ template "databand.fullname" $ }}-web
+                port:
+                  number: {{ $.Values.web.service.servicePort }}
+              {{- else }}
+              serviceName: {{ template "databand.fullname" $ }}-web
+              servicePort: web
+              {{- end }}
+          {{- end }}
+
+
+          {{- range $path := .Values.ingress.external.tracking.paths }}
+          - path: {{ $path }}
+            {{- if $ingressSupportsPathType }}
+            pathType: {{ $ingressPathType }}
+            {{- end }}
+            backend:
+              {{- if $ingressApiIsStable }}
+              service:
+                name: {{ template "databand.fullname" $ }}-tracking
+                port:
+                  number: {{ $.Values.tracking.service.servicePort }}
+              {{- else }}
+              serviceName: {{ template "databand.fullname" $ }}-tracking
+              servicePort: tracking
+              {{- end }}
+          {{- end }}
+
+          {{- range $path := .Values.ingress.external.webapp.paths }}
+          - path: {{ $path }}
+            {{- if $ingressSupportsPathType }}
+            pathType: {{ $ingressPathType }}
+            {{- end }}
+            backend:
+              {{- if $ingressApiIsStable }}
+              service:
+                name: {{ template "databand.fullname" $ }}-webapp
+                port:
+                  number: {{ $.Values.webapp.service.servicePort }}
+              {{- else }}
+              serviceName: {{ template "databand.fullname" $ }}-webapp
+              servicePort: webapp
+              {{- end }}
+          {{- end }}
+
+      host: {{ .Values.ingress.external.web.host }}
+{{- end }}

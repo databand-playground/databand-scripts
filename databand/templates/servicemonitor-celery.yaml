@@ -1,0 +1,43 @@
+
+{{- if .Values.celery.flower.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ template "databand.fullname" . }}-celery
+  {{- if .Values.celery.flower.serviceMonitor.namespace }}
+  namespace: {{ .Values.celery.flower.serviceMonitor.namespace }}
+  {{- end }}
+  labels:
+    app: {{ template "databand.name" . }}-celery
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.celery.flower.serviceMonitor.labels }}
+    {{- toYaml .Values.celery.flower.serviceMonitor.labels | nindent 4 }}
+    {{- end }}
+spec:
+  endpoints:
+  - interval: {{ .Values.celery.flower.serviceMonitor.interval }}
+    {{- if .Values.celery.flower.serviceMonitor.scrapeTimeout }}
+    scrapeTimeout: {{ .Values.celery.flower.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+    targetPort: web-flower
+    path: {{ .Values.celery.flower.serviceMonitor.path }}
+    scheme: {{ .Values.celery.flower.serviceMonitor.scheme }}
+  jobLabel: "{{ .Release.Name }}"
+  selector:
+    matchLabels:
+      app: {{ template "databand.name" . }}
+      component: celery-flower
+      release: "{{ .Release.Name }}"
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- if .Values.celery.flower.serviceMonitor.targetLabels }}
+  targetLabels:
+{{- range .Values.celery.flower.serviceMonitor.targetLabels }}
+    - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}

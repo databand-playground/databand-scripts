@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dbnd-alertmanager-cm
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "databand.name" . }}
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["configmaps"]
+  verbs: ["create","update","get","list","patch","watch"]

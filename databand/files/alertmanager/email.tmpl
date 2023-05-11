@@ -1,0 +1,206 @@
+{{ define "__single_email_subject" }}
+    {{- range .Alerts.Firing }} {{ .Annotations.defining_entity }} — {{ .Labels.alertname }}{{- end -}}
+{{- end -}}
+
+
+{{ define "dbnd_email_subject" }}🔔 {{ if or (and (eq (len .Alerts.Firing) 1) (eq (len .Alerts.Resolved) 0)) (and (eq (len .Alerts.Firing) 0) (eq (len .Alerts.Resolved) 1)) }}{{ template "__single_email_subject" . }}{{ end }}{{ end }}
+
+{{ define "email_body" }}
+<table class="body-wrap" style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; width: 100%; background-color: #f6f6f6; margin: 0;" bgcolor="#f6f6f6">
+  <tr style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; margin: 0;">
+    <td style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; vertical-align: top; margin: 0;" valign="top"></td>
+    <td class="container" width="600" style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; vertical-align: top; display: block !important; max-width: 600px !important; clear: both !important; margin: 0 auto;" valign="top">
+        <div class="content" style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; max-width: 600px; display: block; margin: 0 auto; padding: 20px;">
+          <table class="main" width="100%" cellpadding="0" cellspacing="0" style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; border-radius: 3px; background-color: #fff; margin: 0; border: 1px solid #e9e9e9;" bgcolor="#fff">
+              <tr style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; margin: 0;">
+                  <td class="alert {{ .Labels.severity | toLower }}-severity" style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 16px; vertical-align: top; color: #fff; font-weight: 500; text-align: center; border-radius: 3px 3px 0 0; 	; margin: 0; padding: 20px;" align="center">
+                  {{ if and  .Labels.severity }}
+                   {{ if eq .Labels.severity "CRITICAL" }}
+                    <img alt="Critical severity" height="24" width="24" style="vertical-align: middle;" src="https://res.cloudinary.com/databand/image/upload/v1643112472/email-alerts-assets/Critical_buejgd.png" />
+                    {{ end }}
+                    {{ if eq .Labels.severity "HIGH" }}
+                        <img alt="High severity" height="24" width="24" style="vertical-align: middle;" src="https://res.cloudinary.com/databand/image/upload/v1643112608/email-alerts-assets/High_white_oaemgb.png" />
+                    {{ end }}
+                    {{ if eq .Labels.severity "MEDIUM" }}
+                        <img alt="Medium severity" height="24" width="24" style="vertical-align: middle;" src="https://res.cloudinary.com/databand/image/upload/v1643112472/email-alerts-assets/Medium_white_fjqllr.png" />
+                    {{ end }}
+                    {{ if eq .Labels.severity "LOW" }}
+                        <img alt="Low severity" height="24" width="24" style="vertical-align: middle;" src="https://res.cloudinary.com/databand/image/upload/v1643112660/email-alerts-assets/Low_white_yums8j.png" />
+                    {{ end }}
+                    <strong style="vertical-align: middle;">{{ .Labels.severity }}</strong>
+                  {{ end }}
+                  <span style="vertical-align: middle;">  |  {{ .Labels.title }}</span>
+                </td>
+              </tr>
+              <tr style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; margin: 0;">
+                <td class="content-wrap" style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; vertical-align: top; margin: 0; padding: 20px;" valign="top">
+                    <table width="100%" cellpadding="0" cellspacing="0" style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; margin: 0;">
+                      <tr style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; margin: 0;">
+                          <td class="content-block" style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; vertical-align: top; margin: 0; padding: 0 0 0px;" valign="top">
+                            <p><strong>Pipeline name:</strong><a href="http://{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.job_id }}?utm_source=email&utm_alert={{ .Labels.alert_id }}&utm_link=alert_details">{{ .Annotations.defining_entity }}</a></p>
+                            <p><strong>Details:</strong></p>
+                            <ul>
+                              <li><strong>Description</strong>: {{ .Annotations.description }}</li>
+                              {{- if .Annotations.has_alert_trend }}
+                              <li><img height="24" width="24" style="vertical-align: middle;" src="https://res.cloudinary.com/databand/image/upload/v1663865876/email-alerts-assets/Logo_New_Feature_f4kfth.png" /> <a href="{{ .Annotations.base_url }}/app/alerts/{{ .Labels.alert_id }}?utm_source=slack&utm_alert={{ .Labels.alert_id }}" style="text-decoration: none;"><strong>Compare recent values of pipeline duration</strong></a></li>
+                              {{- end }}
+                              {{- if .Labels.task_run_uid }}
+                              <li><strong>Task name</strong>: <a href="{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}//{{ .Labels.task_run_uid }}?utm_source=email&utm_alert={{ .Labels.alert_id }}&utm_link=task_name">{{ .Labels.task_name }}</a></li>
+                              {{- end }}
+                              <li><strong>Alert trigger time</strong>: UTC {{ .Labels.triggered_on }}</li>
+                              {{- if .Labels.run_start_time }}
+                              <li><strong>Run start time</strong>: UTC {{ .Labels.run_start_time }}</li>
+                              {{- end }}
+                              <li><strong>Run name</strong>: <a href="{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}?utm_source=email&utm_alert={{ .Labels.alert_id }}&utm_link=run_name">{{ .Labels.run_name }}</a></li>
+                              <li><strong>Run triggered by</strong>: {{ .Labels.run_triggered_by }} </li>
+                              {{if .Labels.project_name}}
+                              <li><strong>Project name</strong>: {{ .Labels.project_name }} </li>
+                              {{ end }}
+                              {{if .Labels.airflow_tags}}
+                              <li><strong>Airflow tags</strong>: {{ .Labels.airflow_tags }} </li>
+                              {{ end }}
+                              {{if .Labels.af_instance_name}}
+                              <li><strong>Source</strong>: {{ .Labels.af_instance_name }} </li>
+                              {{ end }}
+                              {{if .Labels.missing_ops }}
+                              <li><strong><a href="{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}/datasets?utm_source=email&utm_alert={{ .Labels.alert_id }}&utm_link=missing_op">{{ .Labels.missing_ops_num }} Missing Operations</a></strong>:
+                                {{.Labels.missing_ops}}
+                              </li>
+                              {{ end }}
+                              {{if .Labels.schema_changes }}
+                              <li><strong><a href="{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}/datasets?utm_source=email&utm_alert={{ .Labels.alert_id }}&utm_link=schema_change">Schema changed in {{ .Labels.schema_changes_num }} operation(s)</a></strong>:
+                                {{.Labels.schema_changes}}
+                              </li>
+                              {{ end }}
+                              {{- if gt .Annotations.origin_datasets_num "0" }}
+                              <li><strong>Origin datasets:</strong>
+                              {{- $base_url := .Annotations.base_url -}}
+                              {{- $alert_id  := .Labels.alert_id -}}
+                              {{ range .Annotations.SortedPairs }}
+                              {{- if match "dataset_origin_*" .Name }}
+                              <ul>
+                                <li><strong><a href="http://{{ $base_url }}/app/datasets/{{ slice .Value  0 36 }}?utm_source=email&utm_alert={{ $alert_id }}&utm_link=origin_datasets">{{ slice .Value 36 }}</a></strong></li>
+                              </ul>
+                              {{- end }}
+                              {{- end }}
+                              {{- end }}
+                          </ul>
+                          <a href="http://{{ .Annotations.base_url }}/app/alerts/{{ .Labels.alert_id }}?utm_source=email&utm_alert={{ .Labels.alert_id }}&utm_link=alert_details">Alert details</a>
+                          </td>
+                      </tr>
+                    </table>
+                </td>
+              </tr>
+          </table>
+        </div>
+    </td>
+    <td style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; vertical-align: top; margin: 0;" valign="top"></td>
+  </tr>
+    <tr style="box-sizing: border-box;  margin: 0;">
+        <td></td>
+        <td style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; color: #9c9c9c; box-sizing: border-box; font-size: 14px; vertical-align: top; font-weight: 500; text-align: center; border-radius: 3px 3px 0 0; margin: 0; padding: 20px;" align="center"  valign="top">
+            You’re receiving this email because of your account on Databand  | <a style="color: #9c9c9c;" href="{{ .Annotations.base_url }}/app/alert_receivers?utm_source=email&utm_alert={{ .Labels.alert_id }}&utm_link=configure_alerts">Configure email alerts</a> |  <a style="color: #9c9c9c;" href="https://docs.databand.ai/docs/email-notifications">Documentation</a>
+        </td>
+        <td></td>
+    </tr>
+    <tr style="box-sizing: border-box; margin: 0;">
+        <td></td>
+        <td style="box-sizing: border-box; vertical-align: top; text-align: center; ; margin: 0; padding: 20px;" align="center"  valign="top">
+            <img align="top" height="36" alt="Databand" src="https://res.cloudinary.com/databand/image/upload/v1643112127/email-alerts-assets/Databand-logo-black-and-colour_sszszy.png" />
+        </td>
+        <td></td>
+    </tr>
+</table>
+{{- end -}}
+
+{{ define "dbnd_email_message" }}
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; box-sizing: border-box; font-size: 14px; margin: 0;">
+<head>
+<meta name="viewport" content="width=device-width" />
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+
+<style type="text/css">
+img {
+max-width: 100%;
+}
+
+.critical-severity {
+  background-color: #FF3636;
+}
+
+.high-severity {
+  background-color: #FFA800;
+}
+
+.medium-severity {
+  background-color: #FFD335;
+  color: black !important;
+}
+
+.low-severity {
+  background-color: #FFE713;
+  color: black !important;
+}
+
+.resolved {
+  background-color: #19D868;
+}
+body {
+-webkit-font-smoothing: antialiased; -webkit-text-size-adjust: none; width: 100% !important; height: 100%; line-height: 1.6em;
+}
+body {
+background-color: #f6f6f6;
+}
+@media only screen and (max-width: 640px) {
+  body {
+    padding: 0 !important;
+  }
+  h1 {
+    font-weight: 800 !important; margin: 20px 0 5px !important;
+  }
+  h2 {
+    font-weight: 800 !important; margin: 20px 0 5px !important;
+  }
+  h3 {
+    font-weight: 800 !important; margin: 20px 0 5px !important;
+  }
+  h4 {
+    font-weight: 800 !important; margin: 20px 0 5px !important;
+  }
+  h1 {
+    font-size: 22px !important;
+  }
+  h2 {
+    font-size: 18px !important;
+  }
+  h3 {
+    font-size: 16px !important;
+  }
+  .container {
+    padding: 0 !important; width: 100% !important;
+  }
+  .content {
+    padding: 0 !important;
+  }
+  .content-wrap {
+    padding: 10px !important;
+  }
+  .invoice {
+    width: 100% !important;
+  }
+}
+</style>
+</head>
+
+<body itemscope itemtype="http://schema.org/EmailMessage" style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: none; width: 100% !important; height: 100%; line-height: 1.6em; background-color: #f6f6f6; margin: 0;" bgcolor="#f6f6f6">
+{{if gt (len .Alerts.Firing) 0 }}
+  {{with index .Alerts.Firing 0 }}
+      {{template "email_body" . }}
+  {{ end }}
+{{ end }}
+
+</body>
+</html>
+{{- end -}}

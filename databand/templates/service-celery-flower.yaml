@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "databand.fullname" . }}-celery-flower
+  labels:
+    app: {{ template "databand.name" . }}
+    component: celery-flower
+    release: {{ .Release.Name }}
+spec:
+  {{- if .Values.celery.flower.service.type }}
+  type: {{ .Values.celery.flower.service.type }}
+  {{- else }}
+  type: {{ .Values.databand.service.type }}
+  {{- end }}
+  selector:
+    app: {{ template "databand.name" . }}
+    component: celery-flower
+    release: {{ .Release.Name }}
+  ports:
+    - name: web-flower
+      port: {{ .Values.celery.flower.service.servicePort }}
+      protocol: TCP
+      targetPort: {{ .Values.celery.flower.service.servicePort }}
+{{- if .Values.celery.flower.service.nodePort }}
+      nodePort: {{ .Values.celery.flower.service.nodePort }}
+{{- end }}

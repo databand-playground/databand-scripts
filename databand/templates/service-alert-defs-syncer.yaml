@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "databand.fullname" . }}-alert-defs-syncer
+  labels:
+    app: {{ template "databand.name" . }}
+    component: alert-defs-syncer
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+  {{- if .Values.databand.service.annotations }}
+{{ toYaml .Values.databand.service.annotations | trim | indent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.databand.service.type }}
+  selector:
+    app: prometheus
+    component: server
+    release: {{ .Release.Name }}
+  ports:
+    - name: alert-defs-syncer
+      protocol: TCP
+      port: 5000
+      targetPort: 5000

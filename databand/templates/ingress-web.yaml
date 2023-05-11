@@ -1,0 +1,87 @@
+{{- if .Values.ingress.enabled -}}
+{{- $ingressApiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressSupportsIngressClassName := eq (include "ingress.supportsIngressClassName" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
+{{- $ingressPathType := .Values.ingress.pathType -}}
+apiVersion: {{ template "ingress.apiVersion" . }}
+kind: Ingress
+metadata:
+  name: {{ template "databand.fullname" . }}-web
+  labels:
+    app: {{ template "databand.name" . }}
+    component: web
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+{{- if .Values.ingress.web.annotations }}
+  annotations:
+    {{ range $key, $value := .Values.ingress.web.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+{{- end }}
+spec:
+  {{- if and $ingressSupportsIngressClassName .Values.ingress.ingressClassName }}
+  ingressClassName: {{ .Values.ingress.ingressClassName }}
+  {{- end }}
+  {{- if .Values.ingress.web.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.web.host }}
+      secretName: {{ .Values.ingress.web.tls.secretName }}
+  {{- end }}
+  rules:
+    - http:
+        paths:
+          {{- range $path := .Values.ingress.web.paths }}
+          - path: {{ $path }}
+            {{- if $ingressSupportsPathType }}
+            pathType: {{ $ingressPathType }}
+            {{- end }}
+            backend:
+              {{- if $ingressApiIsStable }}
+              service:
+                name: {{ template "databand.fullname" $ }}-web
+                port:
+                  number: {{ $.Values.web.service.servicePort }}
+              {{- else }}
+              serviceName: {{ template "databand.fullname" $ }}-web
+              servicePort: web
+              {{- end }}
+          {{- end }}
+
+
+          {{- range $path := .Values.ingress.tracking.paths }}
+          - path: {{ $path }}
+            {{- if $ingressSupportsPathType }}
+            pathType: {{ $ingressPathType }}
+            {{- end }}
+            backend:
+              {{- if $ingressApiIsStable }}
+              service:
+                name: {{ template "databand.fullname" $ }}-tracking
+                port:
+                  number: {{ $.Values.tracking.service.servicePort }}
+              {{- else }}
+              serviceName: {{ template "databand.fullname" $ }}-tracking
+              servicePort: tracking
+              {{- end }}
+          {{- end }}
+
+          {{- range $path := .Values.ingress.webapp.paths }}
+          - path: {{ $path }}
+            {{- if $ingressSupportsPathType }}
+            pathType: {{ $ingressPathType }}
+            {{- end }}
+            backend:
+              {{- if $ingressApiIsStable }}
+              service:
+                name: {{ template "databand.fullname" $ }}-webapp
+                port:
+                  number: {{ $.Values.webapp.service.servicePort }}
+              {{- else }}
+              serviceName: {{ template "databand.fullname" $ }}-webapp
+              servicePort: webapp
+              {{- end }}
+          {{- end }}
+      host: {{ .Values.ingress.web.host }}
+{{- end }}

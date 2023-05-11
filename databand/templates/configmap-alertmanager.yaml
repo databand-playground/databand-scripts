@@ -1,0 +1,13 @@
+{{- if and .Values.prometheus.alertmanager.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ .Release.Name }}-{{ .Values.prometheus.alertmanager.configMapOverrideName }}"
+data:
+{{ (.Files.Glob (printf "%s%s" (include "alertmanager.config_path" .) "*.tmpl")).AsConfig | indent 2 }}
+{{- $root := . -}}
+{{- range $key, $value := .Values.prometheus.alertmanager.alertmanagerFiles }}
+  {{ $key }}: |
+{{ tpl $value $root| default "{}" | indent 4 }}
+{{- end -}}
+{{- end -}}

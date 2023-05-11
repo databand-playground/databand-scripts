@@ -1,0 +1,148 @@
+# 1. Based on
+# https://github.com/helm/charts/blob/40000fc5a644ebed41b88d3d93efc11236775d2d/stable/prometheus/templates/configmaps/server.yaml
+# 2. Replaced: `.Values` -> `.Values.prometheus`
+# 3. Change name to `name: "{{ .Release.Name }}-{{ .Values.prometheus.server.configMapOverrideName }}"`
+# 4. Created $ctx to be used by subchart template
+# 5. We need it to define static alertamager discovery, when RBAC is disabled (rbac.create.false)
+# 6. Define scrape target "databand-metrics" with optional RBAC support
+
+{{- if .Values.prometheus.server.enabled }}
+apiVersion: v1
+kind: ConfigMap
+{{ $ctx := dict "Values" .Values.prometheus "Chart" .Chart "Release" .Release }}
+metadata:
+  labels:
+    {{- include "prometheus.server.labels" $ctx | nindent 4 }}
+  name: "{{ .Release.Name }}-{{ .Values.prometheus.server.configMapOverrideName }}"
+{{ include "prometheus.namespace" $ctx | indent 2 }}
+data:
+{{- $root := . -}}
+{{- range $key, $value := .Values.prometheus.serverFiles }}
+  {{ $key }}: |
+{{- if eq $key "prometheus.yml" }}
+    global:
+{{ $root.Values.prometheus.server.global | toYaml | trimSuffix "\n" | indent 6 }}
+{{- if $root.Values.prometheus.server.remoteWrite }}
+    remote_write:
+{{ $root.Values.prometheus.server.remoteWrite | toYaml | indent 4 }}
+{{- end }}
+{{- if $root.Values.prometheus.server.remoteRead }}
+    remote_read:
+{{ $root.Values.prometheus.server.remoteRead | toYaml | indent 4 }}
+{{- end }}
+{{- end }}
+{{- if eq $key "alerts" }}
+{{- if and (not (empty $value)) (empty $value.groups) }}
+    groups:
+{{- range $ruleKey, $ruleValue := $value }}
+    - name: {{ $ruleKey -}}.rules
+      rules:
+{{ $ruleValue | toYaml | trimSuffix "\n" | indent 6 }}
+{{- end }}
+{{- else }}
+{{ toYaml $value | indent 4 }}
+{{- end }}
+{{- else }}
+{{ toYaml $value | default "{}" | indent 4 }}
+{{- end }}
+{{- if eq $key "prometheus.yml" }}
+
+    - job_name: "databand-metrics"
+      scrape_interval: 5s
+      scrape_timeout: 5s
+      metrics_path: "/api/internal/v1/dbnd_tracking_metrics"
+      {{- if not ($root.Values.prometheus.rbac.create) }}
+      static_configs:
+      - targets:
+          - '{{ template "databand.fullname" $root }}-web.{{ $root.Release.Namespace }}:8090'
+      {{- else }}
+      kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+          - '{{ $root.Release.Namespace }}'
+        selectors:
+        - role: "pod"
+          label: "baseComponent=databand-webserver"
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_container_name]
+        action: keep
+        regex: databand-.*
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_namespace
+        target_label: Namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod_name
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_container_name
+        target_label: container_name
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_controller_name
+        target_label: pod_controller_name
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_controller_kind
+        target_label: pod_controller_kind
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_phase
+        target_label: pod_phase
+      {{- end }}
+
+{{- if $root.Values.prometheus.extraScrapeConfigs }}
+{{ tpl $root.Values.prometheus.extraScrapeConfigs $root | indent 4 }}
+{{- end -}}
+{{- if or ($root.Values.prometheus.alertmanager.enabled) ($root.Values.prometheus.server.alertmanagers) }}
+    alerting:
+{{- if $root.Values.prometheus.alertRelabelConfigs }}
+{{ $root.Values.prometheus.alertRelabelConfigs | toYaml  | trimSuffix "\n" | indent 6 }}
+{{- end }}
+      alertmanagers:
+{{- if not ($root.Values.prometheus.rbac.create) }}
+      - static_configs:
+        - targets:
+          {{- if $root.Values.prometheus.alertmanager.fullnameOverride }}
+          - '{{ $root.Values.prometheus.alertmanager.fullnameOverride }}.{{ $root.Release.Namespace }}:9093'
+          {{- else }}
+          - '{{ template "databand.fullname" $root }}-prometheus-alertmanager.{{ $root.Release.Namespace }}:9093'
+          {{- end }}
+{{- else }}
+{{- if $root.Values.prometheus.server.alertmanagers }}
+{{ toYaml $root.Values.prometheus.server.alertmanagers | indent 8 }}
+{{- else }}
+      - kubernetes_sd_configs:
+          - role: pod
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        {{- if $root.Values.prometheus.alertmanager.prefixURL }}
+        path_prefix: {{ $root.Values.prometheus.alertmanager.prefixURL }}
+        {{- end }}
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_namespace]
+          regex: {{ $root.Release.Namespace }}
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          regex: {{ $root.Values.prometheus.nameOverride }}
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_label_component]
+          regex: {{ $root.Values.prometheus.alertmanager.fullnameOverride | default "alertmanager" }}
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_probe]
+          regex: {{ index $root.Values.prometheus.alertmanager.podAnnotations "prometheus.io/probe" | default ".*" }}
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: "9093"
+          action: keep
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

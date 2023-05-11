@@ -1,0 +1,53 @@
+{{- if .Values.pubsub.subscription.main.enabled }}
+apiVersion: pubsub.gcp.crossplane.io/v1alpha1
+kind: Subscription
+metadata:
+  labels:
+    app: {{ .Release.Name }}
+    release: {{ .Release.Name }}
+    component: subscription
+    chart: {{ .Chart.Name }}
+    chart-version: {{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+  name: databand-{{ .Values.clientName }}
+spec:
+  deletionPolicy: {{ .Values.deletionPolicy }}
+  forProvider:
+    ackDeadlineSeconds: {{ .Values.pubsub.subscription.defaults.ackDeadlineSeconds }}
+    enableMessageOrdering: {{ .Values.pubsub.subscription.defaults.enableMessageOrdering }}
+    {{- if .Values.pubsub.subscription.defaults.deadLetterPolicy.enabled }}
+    deadLetterPolicy:
+      deadLetterTopic: databand-{{ .Values.clientName }}-dead
+      maxDeliveryAttempts: {{ .Values.pubsub.subscription.defaults.deadLetterPolicy.maxDeliveryAttempts }}
+    {{- end }}
+    expirationPolicy:
+      ttl: {{ .Values.pubsub.subscription.defaults.expirationPolicy.ttl }}
+    {{- if .Values.pubsub.subscription.main.messageRetentionDuration }}
+    messageRetentionDuration: {{ .Values.pubsub.subscription.main.messageRetentionDuration }}
+    {{- else }}
+    messageRetentionDuration: {{ .Values.pubsub.subscription.defaults.messageRetentionDuration }}
+    {{- end }}
+    topic: databand-{{ .Values.clientName }}
+    filter: {{ .Values.pubsub.subscription.defaults.filter }}
+    pushConfig:
+      {{- if .Values.domain }}
+      pushEndpoint: "https://{{ .Values.domain }}/api/v1/tracking-pubsub/handle"
+      {{- else }}
+      pushEndpoint: "https://{{ .Values.clientName }}.databand.ai/api/v1/tracking-pubsub/handle"
+      {{- end }}
+      {{- if .Values.pubsub.subscription.main.pushConfig.enableAuth }}
+      oidcToken:
+        {{- if .Values.pubsub.subscription.main.pushConfig.audience }}
+        audience: {{ .Values.pubsub.subscription.main.pushConfig.audience }}
+        {{- else }}
+        audience: {{ .Values.clientName }}
+        {{- end }}
+        serviceAccountEmail: {{ .Values.pubsub.subscription.main.pushConfig.serviceAccountEmail }}
+      {{- end }}
+    {{- if .Values.pubsub.subscription.defaults.retainAckedMessages }}
+    retainAckedMessages: {{ .Values.pubsub.subscription.defaults.retainAckedMessages }}
+    {{- end }}
+    retryPolicy:
+      maximumBackoff: {{ .Values.pubsub.subscription.defaults.retryPolicy.maximumBackoff }}
+      minimumBackoff: {{ .Values.pubsub.subscription.defaults.retryPolicy.minimumBackoff }}
+{{- end }}

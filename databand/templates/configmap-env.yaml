@@ -1,0 +1,203 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "databand-env"
+  labels:
+    app: {{ template "databand.name" . }}
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+
+  ## Force UTC timezone
+  TZ: Etc/UTC
+
+  ## Postgres DB configuration
+  POSTGRES_HOST: "{{ template "databand.postgresql.fullname" . }}"
+  POSTGRES_PORT: "{{ .Values.postgresql.primary.service.ports.postgresql }}"
+  POSTGRES_DB: "{{ .Values.postgresql.auth.database }}"
+
+  DBND__CORE__DATABAND_URL: http://{{ template "databand.fullname" . }}-web.{{ .Release.Namespace }}:8090
+  {{ if .Values.global.onepassword.enabled }}
+  DBND__CORE__DBND_USER: $DBND__DEFAULT_USER__USERNAME
+  DBND__CORE__DBND_PASSWORD: $DBND__DEFAULT_USER__PASSWORD
+  {{ else }}
+  DBND__CORE__DBND_USER: "{{ .Values.web.default_user.username }}"
+  DBND__CORE__DBND_PASSWORD: "{{ .Values.web.default_user.password }}"
+  {{ end }}
+
+  {{ if eq .Values.postgresql.enabled true }}
+  DBND__WEBSERVER__SQL_ALCHEMY_CONN: postgresql+psycopg2://{{ .Values.postgresql.auth.username }}:{{ .Values.postgresql.auth.password }}@{{ template "databand.fullname" . }}-postgresql:{{ .Values.postgresql.primary.service.ports.postgresql }}/{{ .Values.postgresql.auth.database }}
+  AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://{{ .Values.postgresql.auth.username }}:{{ .Values.postgresql.auth.password }}@{{ template "databand.fullname" . }}-postgresql:{{ .Values.postgresql.primary.service.ports.postgresql }}/{{ .Values.postgresql.auth.database }}
+  {{ else if eq .Values.cloudsqlinstance.enabled true }}
+  DBND__WEBSERVER__SQL_ALCHEMY_CONN: "postgresql+psycopg2://postgres:$CLOUDSQL_PASSWORD@$CLOUDSQL_HOST:5432/databand"
+  AIRFLOW__CORE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://postgres:$CLOUDSQL_PASSWORD@$CLOUDSQL_HOST:5432/databand"
+  {{ else if and .Values.sql_alchemy_conn.existingSecret.name .Values.sql_alchemy_conn.existingSecret.secretKeys.userPasswordKey }}
+  DBND__WEBSERVER__SQL_ALCHEMY_CONN: "{{  .Values.sql_alchemy_conn.protocol }}://{{  .Values.sql_alchemy_conn.username }}:$DATABASE_PASSWORD@{{  .Values.sql_alchemy_conn.host }}:{{  .Values.sql_alchemy_conn.port }}/{{  .Values.sql_alchemy_conn.dbname }}"
+  AIRFLOW__CORE__SQL_ALCHEMY_CONN: "{{  .Values.sql_alchemy_conn.protocol }}://{{  .Values.sql_alchemy_conn.username }}:$DATABASE_PASSWORD@{{  .Values.sql_alchemy_conn.host }}:{{  .Values.sql_alchemy_conn.port }}/{{  .Values.sql_alchemy_conn.dbname }}"
+  {{ else }}
+  DBND__WEBSERVER__SQL_ALCHEMY_CONN: "{{  .Values.sql_alchemy_conn.protocol }}://{{  .Values.sql_alchemy_conn.username }}:{{  .Values.sql_alchemy_conn.password }}@{{  .Values.sql_alchemy_conn.host }}:{{  .Values.sql_alchemy_conn.port }}/{{  .Values.sql_alchemy_conn.dbname }}"
+  AIRFLOW__CORE__SQL_ALCHEMY_CONN: "{{  .Values.sql_alchemy_conn.protocol }}://{{  .Values.sql_alchemy_conn.username }}:{{  .Values.sql_alchemy_conn.password }}@{{  .Values.sql_alchemy_conn.host }}:{{  .Values.sql_alchemy_conn.port }}/{{  .Values.sql_alchemy_conn.dbname }}"
+  {{ end }}
+
+  DBND__WEBSERVER__CELERY_BROKER_URL: {{ template "redis.url" . }}
+  DBND__WEBSERVER__RESULT_BACKEND: {{ template "redis.url" . }}
+
+  DBND__WEBSERVER__TRACKING_LOG_BUCKET: "{{ .Values.databand.gcs_tracking_log_bucket }}"
+
+  DO_WAIT_INITDB: "false"
+  ## Custom DATABAND and AIRFLOW settings
+
+  FERNET_KEY: "{{ .Values.databand.fernetKey }}"
+  DBND__WEBSERVER__FERNET_KEY: "{{ .Values.databand.fernetKey }}"
+  AIRFLOW__CORE__BASE_LOG_FOLDER: "{{ .Values.logs.path }}"
+
+  {{- with (first .Values.ingress.web.paths) }}
+  AIRFLOW__WEBSERVER__BASE_URL: "http://localhost:8082{{ . }}"
+  {{- end }}
+
+
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "False"
+  AIRFLOW__CORE__EXECUTOR: "LocalExecutor"
+
+  DBND__WEBSERVER__WORKER_CLASS: "{{ .Values.web.gunicorn.worker_class }}"
+  DBND__WEBSERVER__WORKERS: "{{ .Values.web.gunicorn.workers }}"
+  DBND__WEBSERVER__THREADS: "{{ .Values.web.gunicorn.threads }}"
+  DBND__DISABLE_AIRFLOW_SUBDAG_TRACKING: "{{ .Values.databand.disable_subdag_tracking.enabled }}"
+
+  {{- if .Values.databand.gtm.enabled }}
+  DBND__WEBSERVER__GTM_CONTAINER_ID: "{{ .Values.databand.gtm.container_id }}"
+  {{ end }}
+
+  DBND__WEBSERVER__AMPLITUDE_API_KEY: {{ default "" .Values.databand.amplitude.apikey | quote }}
+
+  {{- if .Values.databand.custom_external_url}}
+  DBND__WEBSERVER__DATABAND_EXTERNAL_URL: "{{ .Values.databand.custom_external_url }}"
+  {{- else if and (eq .Values.ingress.enabled true) .Values.ingress.web.host }}
+  DBND__WEBSERVER__DATABAND_EXTERNAL_URL: {{ template "databand.external_url" . }}
+  {{ else }}
+  DBND__WEBSERVER__DATABAND_EXTERNAL_URL: http://localhost:8080
+  {{ end }}
+
+  DBND__WEBSERVER__SERVE_STATICS_ENABLED: "{{ .Values.web.statics.serving_enabled }}"
+  DBND__WEBSERVER__WEBAPP_URL: http://{{ template "databand.fullname" . }}-webapp.{{ .Release.Namespace }}:80
+
+  # Internal swagger UI
+  DBND__WEBSERVER__ENABLE_INTERNAL_SWAGGER_UI: "{{ .Values.web.enable_internal_swagger_ui }}"
+  # Lineage with execution data
+  DBND__WEBSERVER__ENABLE_LINEAGE_WITH_EXECUTION_DATA: "{{ .Values.web.enable_lineage_with_execution_data }}"
+  # Seeding API
+  DBND__WEBSERVER__ENABLE_INTERNAL_PSEUDO_DATA_API: "{{ .Values.web.enable_internal_pseudo_data_api }}"
+  # Alerts
+  DBND__WEBSERVER__ALERT_DEFS_SYNCER_URL: http://{{ template "databand.fullname" . }}-alert-defs-syncer.{{ .Release.Namespace }}:5000
+  {{- if .Values.prometheus.alertmanager.fullnameOverride }}
+  DBND__WEBSERVER__ALERTMANAGER_URL: http://{{ .Values.prometheus.alertmanager.fullnameOverride }}.{{ .Release.Namespace }}:9093
+  {{- else }}
+  DBND__WEBSERVER__ALERTMANAGER_URL: http://{{ template "databand.fullname" . }}-prometheus-alertmanager.{{ .Release.Namespace }}:9093
+  {{- end }}
+  DBND__ALERT__DBND_URL: http://{{ template "databand.fullname" . }}-web.{{ .Release.Namespace }}:8090
+  DBND__ALERT__USE_RULE_SYSTEM: "{{ .Values.databand.alert.use_rule_system}}"
+  DBND__ALERT__COLLECT_HOURS_BACK: "{{ .Values.databand.alert.collect_hours_back }}"
+  DBND__ALERT__USE_ALERTMANAGER_TEMPLATE: "{{ .Values.databand.alert.use_alertmanager_template }}"
+  DBND__ALERT__SYNC_ALERTMANAGER_CONFIG: "{{ .Values.databand.alert.sync_alertmanager_config }}"
+  DBND__ALERT__SMTP_LOCAL_MACHINE_ENABLED: "{{ .Values.databand.smtp.smtp_local_machine_enabled }}"
+  DBND__ALERT_DEF_SYNCER__SYNC_ALERTMANAGER_CONFIG: "{{ .Values.databand.alert.sync_alertmanager_config }}"
+  DBND__ALERT_DEF_SYNCER__ALERTS_DIR: "{{ .Values.databand.alert.alerts_dir }}"
+  DBND__ALERT_DEF_SYNCER__PROMETHEUS_URL: http://{{ template "databand.fullname" . }}-prometheus-server.{{ .Release.Namespace }}:9090
+  DBND__ALERT_DEF_SYNCER__DBND_URL: http://{{ template "databand.fullname" . }}-web.{{ .Release.Namespace }}:8090
+  DBND__ALERT_DEF_SYNCER__CM_NAME: {{ .Release.Name }}-{{ .Values.prometheus.alertmanager.configMapOverrideName }}
+
+  {{- range $setting, $option := .Values.databand.config }}
+  {{ $setting }}: "{{ $option }}"
+  {{- end }}
+
+  # use singlequotes, expected values looks like: '["local","dev"]'
+  DBND__WEBSERVER__ENV_TO_FILTER: '{{ .Values.databand.alert.env_to_filter }}'
+
+  DBND__WEBSERVER__ENV: "{{ .Values.web.env }}"
+  DBND__WEBSERVER__LOG_FORMAT: "{{ .Values.databand.log_format }}"
+
+  {{- if and .Values.web.secret_key (not .Values.global.onepassword.enabled) }}
+  DBND__WEBSERVER__SECRET_KEY: "{{ .Values.web.secret_key }}"
+  {{- else if .Values.global.onepassword.enabled }}
+  DBND__WEBSERVER__SECRET_KEY: $DBND__WEBSERVER__SECRET_KEY
+  {{- end }}
+
+  {{- if .Values.global.databand.sentry.enabled }}
+  DBND__WEBSERVER__SENTRY_ENABLED: "{{ .Values.global.databand.sentry.enabled }}"
+  # DBND__WEBSERVER__SENTRY_URL should be retrieved from secrets, see "databand.mapenvsecrets"
+    {{- if .Values.global.databand.sentry.env }}
+  DBND__WEBSERVER__SENTRY_ENV: {{ .Values.global.databand.sentry.env }}
+  DBND__WEBSERVER__SENTRY_RELEASE: "{{ .Values.global.databand.sentry.env }}-{{ .Values.global.databand.image.tag }}"
+    {{ else }}
+  DBND__WEBSERVER__SENTRY_ENV: {{ .Release.Namespace }}
+  DBND__WEBSERVER__SENTRY_RELEASE: "{{ .Release.Namespace }}-{{ .Values.global.databand.image.tag }}"
+    {{- end }}
+  {{- end -}}
+
+  {{  if .Values.web.ab_auth.external_jwt_public_key }}
+  DBND__AB_AUTH__EXTERNAL_JWT_PUBLIC_KEY: "{{ .Values.web.ab_auth.external_jwt_public_key }}"
+  {{- end -}}
+
+  {{  if .Values.web.ab_auth.pubsub_service_account_email }}
+  DBND__AB_AUTH__PUBSUB_SERVICE_ACCOUNT_EMAIL: "{{ .Values.web.ab_auth.pubsub_service_account_email }}"
+  {{- end -}}
+
+  {{  if .Values.web.ab_auth.oauth2_providers }}
+  # use singlequotes, expected values looks like: '["github","okta"]'
+  DBND__AB_AUTH__OAUTH2_PROVIDERS: '{{ .Values.web.ab_auth.oauth2_providers }}'
+  {{ if .Values.global.onepassword.enabled }}
+  # github
+  DBND__AB_AUTH__GITHUB_KEY: $DBND__AB_AUTH__GITHUB_KEY
+  DBND__AB_AUTH__GITHUB_SECRET: $DBND__AB_AUTH__GITHUB_SECRET
+  # gitlab
+  DBND__AB_AUTH__GITLAB_KEY: $DBND__AB_AUTH__GITLAB_KEY
+  DBND__AB_AUTH__GITLAB_SECRET: $DBND__AB_AUTH__GITLAB_SECRET
+  # okta
+  DBND__AB_AUTH__OKTA_KEY: $DBND__AB_AUTH__OKTA_KEY
+  DBND__AB_AUTH__OKTA_SECRET: $DBND__AB_AUTH__OKTA_SECRET
+  DBND__AB_AUTH__OKTA_BASE_URL: $DBND__AB_AUTH__OKTA_BASE_URL
+  {{ else }}
+  # github
+  DBND__AB_AUTH__GITHUB_KEY: "{{ .Values.web.ab_auth.github_key }}"
+  DBND__AB_AUTH__GITHUB_SECRET: "{{ .Values.web.ab_auth.github_secret }}"
+  # gitlab
+  DBND__AB_AUTH__GITLAB_KEY: "{{ .Values.web.ab_auth.gitlab_key }}"
+  DBND__AB_AUTH__GITLAB_SECRET: "{{ .Values.web.ab_auth.gitlab_secret }}"
+  # okta
+  DBND__AB_AUTH__OKTA_KEY: "{{ .Values.web.ab_auth.okta_key }}"
+  DBND__AB_AUTH__OKTA_SECRET: "{{ .Values.web.ab_auth.okta_secret }}"
+  DBND__AB_AUTH__OKTA_BASE_URL: "{{ .Values.web.ab_auth.okta_base_url }}"
+  {{- end }}
+  {{- end }}
+  # SAML
+  {{- if .Values.web.ab_auth.saml.enabled }}
+  DBND__AB_AUTH__SAML_PROVIDER_NAME: "{{ .Values.web.ab_auth.saml.provider_name }}"
+  DBND__AB_AUTH__SAML_ENTITYID: "{{ .Values.web.ab_auth.saml.entityid }}"
+  DBND__AB_AUTH__SAML_METADATA_URL: "{{ .Values.web.ab_auth.saml.metadata_url }}"
+  {{- end }}
+
+  DBND__AB_AUTH__ENABLE_TRACKING_AUTH: "{{ .Values.web.ab_auth.enable_tracking_auth }}"
+
+  {{- if eq .Values.databand.newrelic.enabled true }}
+  NEW_RELIC_APP_NAME: "{{ .Values.databand.newrelic.app_name }}"
+  NEW_RELIC_DISTRIBUTED_TRACING_ENABLED: "{{ .Values.databand.newrelic.distributed_tracing }}"
+  NEW_RELIC_ENVIRONMENT: "{{ .Values.databand.newrelic.environment }}"
+  {{- end -}}
+
+  {{- if eq .Values.web.default_user.disabled false }}
+  DBND__DEFAULT_USER__DISABLED: "{{ .Values.web.default_user.disabled }}"
+  DBND__DEFAULT_USER__ROLE: "{{ .Values.web.default_user.role }}"
+  DBND__DEFAULT_USER__EMAIL: "{{ .Values.web.default_user.email }}"
+  DBND__DEFAULT_USER__FIRSTNAME: "{{ .Values.web.default_user.firstname }}"
+  DBND__DEFAULT_USER__LASTNAME: "{{ .Values.web.default_user.lastname }}"
+  {{ if .Values.global.onepassword.enabled }}
+  DBND__DEFAULT_USER__USERNAME: $DBND__DEFAULT_USER__USERNAME
+  DBND__DEFAULT_USER__PASSWORD: $DBND__DEFAULT_USER__PASSWORD
+  {{ else }}
+  DBND__DEFAULT_USER__USERNAME: "{{ .Values.web.default_user.username }}"
+  DBND__DEFAULT_USER__PASSWORD: "{{ .Values.web.default_user.password }}"
+  {{ end }}
+  {{- end -}}
+
+  DBND__WEBSERVER__DATASET_WITH_PARTITION: "{{ .Values.web.enable_dataset_with_partition }}"

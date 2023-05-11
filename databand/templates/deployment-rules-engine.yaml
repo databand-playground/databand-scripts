@@ -1,0 +1,152 @@
+{{- if .Values.rule_engine.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "databand.fullname" . }}-rule-engine
+  labels:
+    app: {{ template "databand.name" . }}
+    component: rule-engine
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: 1
+  minReadySeconds: {{ .Values.rule_engine.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: {{ template "databand.name" . }}
+      component: rule-engine
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/config-env: {{ include (print $.Template.BasePath "/configmap-env.yaml") . | sha256sum }}
+{{- if .Values.databand.podAnnotations }}
+{{ toYaml .Values.databand.podAnnotations | indent 8 }}
+{{- end }}
+      labels:
+        app: {{ template "databand.name" . }}
+        component: rule-engine
+        release: {{ .Release.Name }}
+    spec:
+      {{- if .Values.global.databand.image.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.databand.image.pullSecret }}
+        {{- if .Values.global.databand.image.additionalPullSecret }}
+        - name: {{ .Values.global.databand.image.additionalPullSecret }}
+        {{- end }}
+      {{- end }}
+      restartPolicy: Always
+      {{- if .Values.databand.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.databand.nodeSelector | indent 8 }}
+      {{- else if .Values.rule_engine.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.rule_engine.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.rule_engine.affinity }}
+      affinity:
+{{ toYaml .Values.rule_engine.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.rule_engine.tolerations }}
+      tolerations:
+{{ toYaml .Values.rule_engine.tolerations | indent 8 }}
+      {{- end }}
+      {{- if .Values.rule_engine.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.rule_engine.podSecurityContext | indent 8 }}
+      {{- else if .Values.databand.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.databand.podSecurityContext | indent 8 }}
+      {{- end }}
+      serviceAccountName: {{ template "databand.serviceAccountName" . }}
+      initContainers:
+      - name: wait-web
+        {{- if .Values.databand.initContainers.securityContext }}
+        securityContext:
+{{ toYaml .Values.databand.initContainers.securityContext | indent 12 }}
+        {{- end }}
+        image: {{ .Values.databand.initContainers.wait_web.image.repository }}:{{ .Values.databand.initContainers.wait_web.image.tag }}
+        {{- if .Values.global.databand.image.pullPolicy }}
+        imagePullPolicy: {{ .Values.global.databand.image.pullPolicy }}
+        {{- end }}
+        command: ['sh', '-c', 'for i in $(seq 1 200); do nc -z -w3 {{ template "databand.fullname" . }}-web 8090 && exit 0 || sleep 3; done; exit 1']
+        resources:
+{{ toYaml .Values.databand.initContainers.resources | indent 10 }}
+      containers:
+        - name: {{ .Chart.Name }}-rule-engine
+          {{- if .Values.rule_engine.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.rule_engine.containerSecurityContext | indent 12 }}
+          {{- else if .Values.databand.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.databand.containerSecurityContext | indent 12 }}
+          {{- end }}
+          image: {{ .Values.global.databand.image.repository }}/dbnd-webserver:python-{{ .Values.global.databand.image.tag }}
+          {{- if .Values.global.databand.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.databand.image.pullPolicy}}
+          {{- end }}
+          ports:
+            - name: rule-engine
+              containerPort: 8008
+              protocol: TCP
+          envFrom:
+          - configMapRef:
+              name: "databand-env"
+          env:
+          {{- include "databand.mapenvsecrets" . | indent 10 }}
+          resources:
+{{ toYaml .Values.rule_engine.resources | indent 12 }}
+          volumeMounts:
+            - name: dbnd-prom
+              mountPath: /dbnd/prom
+            - name: var-tmp
+              mountPath: /var/tmp
+          {{- $secretsDir := .Values.rule_engine.secretsDir -}}
+          {{- range .Values.rule_engine.secrets }}
+            - name: {{ . }}-volume
+              readOnly: true
+              mountPath: {{ $secretsDir }}/{{ . }}
+          {{- end }}
+          {{- range .Values.databand.extraConfigmapMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+              {{ if .subPath }}
+              subPath: {{ .subPath }}
+              {{ end }}
+          {{- end }}
+{{- if .Values.databand.extraVolumeMounts }}
+{{ toYaml .Values.databand.extraVolumeMounts | indent 12 }}
+{{- end }}
+          args:
+            - "bash"
+            - "-c"
+            - {{ include "databand.cmdrun" (dict "cmd" " dbnd-web rule-engine" "Values" .Values ) }}
+{{- end }}
+{{- if .Values.databand.extraContainers }}
+{{ toYaml .Values.databand.extraContainers | indent 8 }}
+{{- end }}
+      volumes:
+        {{- range .Values.rule_engine.secrets }}
+        - name: {{ . }}-volume
+          secret:
+            secretName: {{ . }}
+        {{- end }}
+        {{- range .Values.databand.extraConfigmapMounts }}
+        - name: {{ .name }}
+          configMap:
+            name: {{ .configMap }}
+        {{- end }}
+        - name: dbnd-prom
+          emptyDir: {}
+        - name: var-tmp
+          emptyDir: {}
+{{- if .Values.databand.extraVolumes }}
+{{ toYaml .Values.databand.extraVolumes | indent 8 }}
+{{- end }}

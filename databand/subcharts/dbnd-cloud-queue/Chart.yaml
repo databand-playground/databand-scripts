@@ -1,0 +1,18 @@
+apiVersion: v2
+version: 1.0.78
+name: dbnd-cloud-queue
+type: application
+
+description: Helm Chart for gcp pubsub(topic/subscription)
+home: https://databand.ai
+maintainers:
+  - name: Evgeny Shulman
+    email: evgeny.shulman@databand.ai
+
+keywords:
+  - pubsub
+  - topic
+  - subscription
+  - queue
+  - cloudflare
+  - workers

@@ -1,0 +1,44 @@
+{{- if .Values.replica.enabled }}
+apiVersion: database.gcp.crossplane.io/v1beta1
+kind: CloudSQLInstance
+metadata:
+  labels:
+    app: {{ template "cloudsqlinstance.fullname" . }}
+    release: {{ .Release.Name }}
+    component: cloudsqlinstance-replica
+    chart: {{ template "cloudsqlinstance.chart" . }}
+    heritage: {{ .Release.Service }}
+  name: dbnd-{{ .Values.sqlInstanceName }}-replica
+spec:
+  deletionPolicy: {{ .Values.deletionPolicy }}
+  forProvider:
+    databaseVersion: {{ .Values.settings.databaseVersion }}
+    masterInstanceName: {{ .Values.replica.masterProjectID }}:dbnd-{{ .Values.sqlInstanceName }}
+    region: {{ .Values.settings.region }}
+    settings:
+      dataDiskSizeGb: {{ .Values.settings.dataDiskSizeGb }}
+      dataDiskType: {{ .Values.settings.dataDiskType }}
+      {{- if .Values.settings.databaseFlags }}
+      databaseFlags:
+      {{- range .Values.settings.databaseFlags }}
+      - name: {{ .name }}
+        value: {{ .value | quote }}
+      {{- end }}
+      {{- end }}
+      ipConfiguration:
+        authorizedNetworks:
+        {{- range .Values.settings.ipConfiguration.authorizedNetworks }}
+        - name: {{ .name }}
+          value: {{ .value }}
+          expirationTime: ""
+        {{- end }}
+        ipv4Enabled: {{ .Values.settings.ipConfiguration.ipv4Enabled }}
+        requireSsl: {{ .Values.settings.ipConfiguration.requireSsl }}
+        privateNetwork: {{ .Values.settings.ipConfiguration.privateNetwork }}
+      replicationType: {{ .Values.replica.replicationType }}
+      storageAutoResize: {{ .Values.replica.storageAutoResize }}
+      tier: {{ .Values.settings.tier }}
+  writeConnectionSecretToRef:
+    name: {{ .Values.writeConnectionSecretToRef.name }}-replica
+    namespace: {{ .Release.Namespace }}
+{{- end }}

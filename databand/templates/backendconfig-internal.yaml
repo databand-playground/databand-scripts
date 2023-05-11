@@ -1,0 +1,21 @@
+{{- if .Values.ingress.backendconfig.enabled }}
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+{{- if .Values.ingress.ingressClassName }}
+  name: "{{ template "databand.fullname" . }}-{{ .Values.ingress.ingressClassName }}"
+{{- else }}
+  name: "{{ template "databand.fullname" . }}-internal"
+{{- end }}
+  labels:
+    app: {{ template "databand.name" . }}
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+{{- if .Values.ingress.backendconfig.annotations }}
+  annotations:
+{{ toYaml .Values.ingress.backendconfig.annotations | indent 4 }}
+{{- end }}
+spec:
+{{ toYaml .Values.ingress.backendconfig.spec | indent 2 }}
+{{- end }}

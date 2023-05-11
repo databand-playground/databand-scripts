@@ -1,0 +1,57 @@
+sqlInstanceName: ""
+deletionPolicy: Orphan
+settings:
+  databaseVersion: POSTGRES_12
+  region: us-east1
+  availabilityType: REGIONAL
+  tier: db-custom-1-4096
+  dataDiskType: PD_HDD
+  dataDiskSizeGb: 100
+  storageAutoResizeLimit: 1000
+  backupConfiguration:
+    enabled: true
+    startTime: "23:00"
+    location: "us"
+  ## Specify additional database flag
+  ## https://cloud.google.com/sql/docs/postgres/flags#list-flags-postgres
+  databaseFlags: []
+    # - name: ""
+    #   value: ""
+  ipConfiguration:
+    ## Specify authorize network
+    ## https://cloud.google.com/sql/docs/postgres/authorize-networks
+    authorizedNetworks: []
+      # - name: ""
+      #   value: ""
+    ipv4Enabled: false
+    requireSsl: false
+    privateNetwork: ""
+  maintenanceWindow:
+    ## Day of the week (1-7) started from Monday
+    day: 1
+    ## UTC time zone
+    hour: 8
+    ## canary (Earlier) or stable (Later)
+    updateTrack: stable
+  userLabels: {}
+## Read replica configuration
+replica:
+  enabled: false
+  replicationType: "SYNCHRONOUS"
+  storageAutoResize: true
+  masterProjectID: ""
+## Enable creation readonly user
+users:
+  readonly:
+    enabled: false
+## k8s secret name where connection information are stored
+writeConnectionSecretToRef:
+  name: cloudsqlpostgresql-conn
+## Specify additional annotation for jobs. Useful for ArgoCD hooks.
+jobs:
+  db:
+    annotations: {}
+  secret:
+    annotations: {}
+argocd:
+  enabled: false

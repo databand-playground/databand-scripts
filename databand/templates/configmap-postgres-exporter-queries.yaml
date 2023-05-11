@@ -1,0 +1,13 @@
+{{- if index .Values "prometheus-postgres-exporter" "config" "externalQueries" "enabled" }}
+{{- $data := .Files.Glob (printf "%s%s" (include "postgres-exporter.config_path" .) "**.yaml") }}
+{{- if $data }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "prometheus-postgres-exporter-queries"
+  labels:
+    {{- include "prometheus-postgres-exporter.labels" . | nindent 4 }}
+data:
+{{ ($data).AsConfig | indent 2 }}
+{{- end }}
+{{- end }}

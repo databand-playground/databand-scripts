@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "databand.fullname" . }}-celery-worker
+  labels:
+    app: {{ template "databand.name" . }}
+    component: celery-worker
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+  {{- if .Values.celery.worker.annotations }}
+{{ toYaml .Values.celery.worker.annotations | trim | indent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.celery.worker.type }}
+  type: {{ .Values.celery.worker.type }}
+  {{- else }}
+  type: {{ .Values.celery.worker.type }}
+  {{- end }}
+  selector:
+    app: {{ template "databand.name" . }}
+    component: celery-worker
+    release: {{ .Release.Name }}
+  ports:
+    - name: celery-worker
+      protocol: TCP
+      port: {{ .Values.celery.worker.servicePort }}
+      targetPort: 8095
+{{- if .Values.celery.worker.nodePort }}
+      nodePort: {{ .Values.celery.worker.nodePort }}
+{{- end }}

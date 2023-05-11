@@ -1,0 +1,70 @@
+{# Deprecated since v0.56 #}
+{{ define "__single_email_subject" }}
+    {{- range .Alerts.Firing }} {{ .Annotations.defining_entity }} — {{ .Labels.alertname }}{{- end -}}
+    {{- range .Alerts.Resolved }} {{ .Annotations.defining_entity }} — {{ .Labels.alertname }}{{- end -}}
+{{- end -}}
+
+
+{{ define "dbnd_email_subject" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}]{{ if or (and (eq (len .Alerts.Firing) 1) (eq (len .Alerts.Resolved) 0)) (and (eq (len .Alerts.Firing) 0) (eq (len .Alerts.Resolved) 1)) }}{{ template "__single_email_subject" . }}{{ end }}{{ end }}
+
+
+{{ define "dbnd_email_message" }}
+   {{- if gt (len .Alerts.Firing) 0 }}
+   <h3>Alerts Firing:</h3>
+   {{ with index .Alerts.Firing 0 -}}
+   <strong>Alert</strong>: {{ .Annotations.defining_entity }}{{ if .Labels.severity }} — `{{ .Labels.severity }}`{{ end }}:<br>
+   <ul>
+      <li><strong>Description</strong>: {{ .Annotations.description }}</li>
+      <li><strong>Triggered On</strong>: UTC {{ .Labels.triggered_on }}</li>
+      <li><strong>Run</strong>: <a href="{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}?utm_source=email">{{ .Labels.run_name }}</a></li>
+      <li><strong>Run Triggered By</strong>: {{ .Labels.run_triggered_by }} </li>
+      {{- if .Labels.project_name}}
+      <li><strong>Project Name</strong>: {{ .Labels.project_name }} </li>
+      {{- end}}
+      {{- if .Labels.af_instance_name}}
+      <li><strong>Source</strong>: {{ .Labels.af_instance_name }} </li>
+      {{- end}}
+      {{- if gt (len .Labels.missing_ops) 0 }}
+      <li><strong>Missing Operations</strong>:
+         {{.Labels.missing_ops}}
+      </li>
+      {{- end }}
+      {{- if .Labels.error_with_traceback }}
+      <li>
+         <strong>Error</strong>:
+         <pre>{{ .Labels.error_with_traceback }}</pre>
+      </li>
+      {{- end }}
+   </ul>
+   {{- end }}
+   {{- end }}
+   {{- if gt (len .Alerts.Resolved) 0 }}
+   <h3>Alerts Resolved:</h3>
+   {{ with index .Alerts.Resolved 0 -}}
+   <strong>Alert</strong>: {{ .Annotations.defining_entity }}{{ if .Labels.severity }} —`{{ .Labels.severity }}`{{ end }}:<br>
+   <ul>
+      <li><strong>Description</strong>: {{ .Annotations.description }}</li>
+      <li><strong>Triggered On</strong>: UTC {{ .Labels.triggered_on }}</li>
+      <li><strong>Run</strong>: <a href="{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}?utm_source=email">{{ .Labels.run_name }}</a></li>
+      <li><strong>Run Triggered By</strong>: {{ .Labels.run_triggered_by }} </li>
+      {{- if .Labels.project_name}}
+      <li><strong>Project Name</strong>: {{ .Labels.project_name }} </li>
+      {{- end}}
+      {{- if .Labels.af_instance_name}}
+      <li><strong>Source</strong>: {{ .Labels.af_instance_name }} </li>
+      {{- end}}
+      {{- if gt (len .Labels.missing_ops) 0 }}
+      <li><strong>Missing Operations</strong>:
+         {{.Labels.missing_ops}}
+      </li>
+      {{- end }}
+      {{- if .Labels.error_with_traceback }}
+      <li>
+         <strong>Error</strong>:
+         <pre>{{ .Labels.error_with_traceback }}</pre>
+      </li>
+      {{- end }}
+   </ul>
+   {{- end }}
+   {{- end }}
+{{- end -}}

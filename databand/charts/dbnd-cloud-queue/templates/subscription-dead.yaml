@@ -1,0 +1,33 @@
+{{- if .Values.pubsub.subscription.dead.enabled }}
+apiVersion: pubsub.gcp.crossplane.io/v1alpha1
+kind: Subscription
+metadata:
+  labels:
+    app: {{ .Release.Name }}
+    release: {{.Release.Name}}
+    component: subscription
+    chart: {{ .Chart.Name }}
+    chart-version: {{ .Chart.Version }}
+    heritage: {{.Release.Service}}
+  name: databand-{{ .Values.clientName }}-dead
+spec:
+  deletionPolicy: {{.Values.deletionPolicy}}
+  forProvider:
+    ackDeadlineSeconds: {{.Values.pubsub.subscription.defaults.ackDeadlineSeconds}}
+    enableMessageOrdering: {{.Values.pubsub.subscription.defaults.enableMessageOrdering}}
+    expirationPolicy:
+      ttl: {{.Values.pubsub.subscription.defaults.expirationPolicy.ttl}}
+    {{- if .Values.pubsub.subscription.dead.messageRetentionDuration }}
+    messageRetentionDuration: {{ .Values.pubsub.subscription.dead.messageRetentionDuration }}
+    {{- else }}
+    messageRetentionDuration: {{ .Values.pubsub.subscription.defaults.messageRetentionDuration }}
+    {{- end }}
+    topic: databand-{{ .Values.clientName }}-dead
+    filter: {{.Values.pubsub.subscription.defaults.filter}}
+    {{- if .Values.pubsub.subscription.defaults.retainAckedMessages }}
+    retainAckedMessages: {{ .Values.pubsub.subscription.defaults.retainAckedMessages }}
+    {{- end }}
+    retryPolicy:
+      maximumBackoff: {{.Values.pubsub.subscription.defaults.retryPolicy.maximumBackoff}}
+      minimumBackoff: {{.Values.pubsub.subscription.defaults.retryPolicy.minimumBackoff}}
+{{- end }}

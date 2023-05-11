@@ -1,0 +1,152 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "databand.fullname" . }}-celery-flower
+  labels:
+    app: {{ template "databand.name" . }}
+    component: celery-flower
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: 1
+  minReadySeconds: {{ .Values.celery.flower.minReadySeconds }}
+  strategy:
+    # Smooth rolling update of the celery-flower service
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: {{ template "databand.name" . }}
+      component: celery-flower
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/config-env: {{ include (print $.Template.BasePath "/configmap-env.yaml") . | sha256sum }}
+{{- if .Values.databand.podAnnotations }}
+{{ toYaml .Values.databand.podAnnotations | indent 8 }}
+{{- end }}
+{{- if .Values.celery.flower.podAnnotations }}
+{{ toYaml .Values.celery.flower.podAnnotations | indent 8 }}
+{{- end }}
+      labels:
+        app: {{ template "databand.name" . }}
+        component: celery-flower
+        release: {{ .Release.Name }}
+    spec:
+      {{- if .Values.global.databand.image.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.databand.image.pullSecret }}
+      {{- end }}
+      restartPolicy: Always
+      {{- if .Values.databand.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.databand.nodeSelector | indent 8 }}
+      {{- else if .Values.celery.flower.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.celery.flower.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.celery.flower.affinity }}
+      affinity:
+{{ toYaml .Values.celery.flower.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.celery.flower.tolerations }}
+      tolerations:
+{{ toYaml .Values.celery.flower.tolerations | indent 8 }}
+      {{- end }}
+      {{- if .Values.celery.flower.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.celery.flower.podSecurityContext | indent 8 }}
+      {{- else if .Values.databand.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.databand.podSecurityContext | indent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}-celery-flower
+          {{- if .Values.celery.flower.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.celery.flower.containerSecurityContext | indent 12 }}
+          {{- else if .Values.databand.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.databand.containerSecurityContext | indent 12 }}
+          {{- end }}
+          image: "{{ .Values.celery.flower.image.repository }}:{{ .Values.celery.flower.image.tag }}"
+          {{- if .Values.global.databand.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.databand.image.pullPolicy }}
+          {{- end }}
+          ports:
+            - name: web-flower
+              containerPort: {{ .Values.celery.flower.service.servicePort }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: web-flower
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: web-flower
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          env:
+          - name: DBND__WEBSERVER__CELERY_BROKER_URL
+            valueFrom:
+              configMapKeyRef:
+                key: DBND__WEBSERVER__CELERY_BROKER_URL
+                name: databand-env
+{{- if .Values.cloudmemorystore.enabled }}
+          - name: REDIS_HOST
+            valueFrom:
+              secretKeyRef:
+                name: cloudmemorystore-conn
+                key: endpoint
+          - name: REDIS_PORT
+            valueFrom:
+              secretKeyRef:
+                name: cloudmemorystore-conn
+                key: port
+          - name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: cloudmemorystore-conn
+                key: password
+{{- end }}
+          resources:
+{{ toYaml .Values.celery.flower.resources | indent 12 }}
+          volumeMounts:
+          {{- range .Values.databand.extraConfigmapMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+              {{ if .subPath }}
+              subPath: {{ .subPath }}
+              {{ end }}
+          {{- end }}
+{{- if .Values.databand.extraVolumeMounts }}
+{{ toYaml .Values.databand.extraVolumeMounts | indent 12 }}
+{{- end }}
+          command:
+            - /bin/sh
+            - -c
+            - 'celery -b $(eval echo $DBND__WEBSERVER__CELERY_BROKER_URL) list bindings
+            && celery -b $(eval echo $DBND__WEBSERVER__CELERY_BROKER_URL) flower'
+{{- if .Values.databand.extraContainers }}
+{{ toYaml .Values.databand.extraContainers | indent 8 }}
+{{- end }}
+      volumes:
+        {{- range .Values.databand.extraConfigmapMounts }}
+        - name: {{ .name }}
+          configMap:
+            name: {{ .configMap }}
+        {{- end }}
+{{- if .Values.databand.extraVolumes }}
+{{ toYaml .Values.databand.extraVolumes | indent 8 }}
+{{- end }}

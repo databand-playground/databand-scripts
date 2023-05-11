@@ -1,0 +1,317 @@
+# Declare variables to be passed into your templates.
+# Duplicate if you need to customize!
+# This is a YAML-formatted file.
+
+global:
+  databand:
+    image:
+      ##
+      ## Provide you private docker registry
+      repository: registry.gitlab.com/databand/databand-deploy
+      ##
+      ## image tag
+      tag: v1.0.25.11
+      ##
+    imageCredentials:
+      ##
+      ## image pull server
+      registry: registry.gitlab.com
+      ##
+      ## image pull username
+      ## leave empty if you don't want to create secret and use existent one specified via global.databand.image.pullSecret
+      username:
+      ##
+      ## image pull password
+      ## leave empty if you don't want to create secret and use existent one specified via global.databand.image.pullSecret
+      password:
+
+databand:
+  ##
+  ## You will need to define your fernet key:
+  ## Generate fernet_key with:
+  ##    dd if=/dev/urandom bs=32 count=1 2>/dev/null | openssl base64
+  ## fernet_key: ABCDABCDABCDABCDABCDABCDABCDABCDABCDABCD
+  fernetKey: "qOUpd5Mjzzt6E6G9m7_EViAiWqXiN-GMrVvfBzOGluc="
+  ##
+  ## Global (all main Databand components - web, tracking, webapp) high availability
+  ha:
+    enabled: true
+    replicaCount: 2
+
+  ## Init containers configuration
+  initContainers:
+    wait_web:
+      image:
+        repository: busybox
+        tag: 1.28.4
+
+  ##
+  ## Run initdb when the web starts.
+  initdb:
+    enabled: true
+    job:
+      resources:
+        requests:
+          cpu: "0.1"
+          memory: "1200Mi"
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+      initContainers:
+        wait_postgres:
+          busybox:
+            image:
+              repository: busybox
+              tag: 1.28.4
+
+## External DB configuration
+## postgresql+psycopg2://username:${PS_PASSWORD}@dbhost:5432/dbname
+## mysql://username:${MYSQL_PASSWORD}@dbhost:3306/dbname
+sql_alchemy_conn:
+  protocol: ""
+  username: ""
+  password: ""
+  host: ""
+  port: ""
+  dbname: ""
+  existingSecret:
+    name: ""
+    secretKeys:
+      userPasswordKey: ""
+
+dbnd-datasource-monitor:
+  enabled: false
+  resources:
+    requests:
+      memory: "1024Mi"
+      cpu: "200m"
+    limits:
+      memory: "2048Mi"
+      cpu: "2"
+  databand_access_token: ""
+  dbnd_username: ""
+  dbnd_password: ""
+
+dbnd-dbt-monitor:
+  enabled: false
+  resources:
+    requests:
+      memory: "1024Mi"
+      cpu: "200m"
+    limits:
+      memory: "2048Mi"
+      cpu: "2"
+  databand_access_token: ""
+  dbnd_username: ""
+  dbnd_password: ""
+
+dbnd-datastage-monitor:
+  enabled: false
+  resources:
+    requests:
+      memory: "1024Mi"
+      cpu: "200m"
+    limits:
+      memory: "2048Mi"
+      cpu: "2"
+  databand_access_token: ""
+  dbnd_username: ""
+  dbnd_password: ""
+
+ml_trainer:
+  enabled: true
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      cpu: "1"
+      memory: "512Mi"
+
+rule_engine:
+  enabled: true
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      cpu: "1"
+      memory: "512Mi"
+
+web:
+  secret_key: ""
+
+  default_user:
+    disabled: false
+    role: "Support"
+    username: "databand"
+    email: "support@databand.ai"
+    firstname: "Databand"
+    lastname: "Support"
+    password: "databand"
+
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "1200Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+webapp:
+  resources:
+    requests:
+      cpu: "20m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+  ## Set a desired storageClass if no default storageClass is set in Kubernetes cluster
+  # persistence:
+    # storageClass: <YOUR_STORAGE_CLASS_NAME>
+
+celery:
+  worker:
+    resources:
+      requests:
+        cpu: "800m"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "2Gi"
+
+  beat:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "1Gi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+
+  flower:
+    image:
+      repository: mher/flower
+      tag: 0.9.7
+    resources:
+      requests:
+        cpu: "25m"
+        memory: "30Mi"
+      limits:
+        cpu: "200m"
+        memory: "128Mi"
+
+tracking:
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+##
+## Ingress configuration
+ingress:
+  ##
+  ## enable ingress
+  ## Note: If you want to change url prefix for web ui  even if you do not use ingress,
+  ## you can still change ingress.web.path
+  enabled: false
+  web:
+    host: ""
+    ##
+    ## Annotations for the webserver
+    ## webserver handles relative path completely, just let your load balancer give the HTTP
+    ## header like the requested URL (no special configuration neeed)
+    annotations:
+      {}
+      ##
+      ## Example for Nginx:
+      # kubernetes.io/ingress.class: nginx
+      # nginx.ingress.kubernetes.io/proxy-body-size: 16m
+      # nginx.ingress.kubernetes.io/proxy-read-timeout: 400
+
+redis:
+  ##
+  ## Use the Redis chart dependency.
+  ## Set to false if bringing your own Redis or another in-memory store.
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/redis
+    tag: 6.2.6-debian-10-r103
+  ## Set a desired storageClass if no default storageClass is set in Kubernetes cluster
+  # global:
+    # storageClass: <YOUR_STORAGE_CLASS_NAME>
+
+## Specify external in-memory store, instead of local bitnami Redis
+inmemorystore:
+  host: ""
+  port: ""
+  password: ""
+  existingSecret:
+    name: ""
+    secretKeys:
+      passwordKey: ""
+
+## Configuration values for the postgresql dependency.
+## ref: https://github.com/kubernetes/charts/blob/master/stable/postgresql/README.md
+postgresql:
+  ##
+  ## Use the PostgreSQL chart dependency.
+  ## Set to false if bringing your own PostgreSQL.
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/postgresql
+    tag: 12.11.0
+  ## Set a desired storageClass if no default storageClass is set in Kubernetes cluster
+  # global:
+    # storageClass: <YOUR_STORAGE_CLASS_NAME>
+
+## Configuration values for the Prometheus dependency.
+# https://github.com/prometheus-community/helm-charts/tree/main/charts/prometheus
+prometheus:
+  enabled: true
+  alertmanager:
+    # fullnameOverride: alertmanager
+    enabled: true
+    image:
+      repository: quay.io/prometheus/alertmanager
+      tag: v0.24.0
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "10m"
+      limits:
+        memory: "256Mi"
+        cpu: "100m"
+    ## Set a desired storageClass if no default storageClass is set in Kubernetes cluster
+    # persistentVolume:
+      # storageClass: <YOUR_STORAGE_CLASS_NAME>
+  server:
+    image:
+      repository: quay.io/prometheus/prometheus
+      tag: v2.40.5
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "200m"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+    persistentVolume:
+      size: "100Gi"
+      ## Set a desired storageClass if no default storageClass is set in Kubernetes cluster
+      # storageClass: <YOUR_STORAGE_CLASS_NAME>
+    retention: "7d"
+  configmapReload:
+    prometheus:
+      image:
+        repository: jimmidyson/configmap-reload
+        tag: v0.5.0
+    alertmanager:
+      image:
+        repository: jimmidyson/configmap-reload
+        tag: v0.5.0

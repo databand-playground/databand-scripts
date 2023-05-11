@@ -1,0 +1,14 @@
+apiVersion: v2
+version: 0.1.0
+name: cloudmemorystore
+
+description: Helm Chart for gcp memorystore instance
+home: https://databand.ai
+maintainers:
+  - name: Evgeny Shulman
+    email: evgeny.shulman@databand.ai
+
+keywords:
+  - dbnd-cloudmemorystore
+  - cloudmemorystore
+  - memorystore

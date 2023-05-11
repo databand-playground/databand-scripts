@@ -1,0 +1,44 @@
+{{ define "__single_message_title" }}
+    {{- range .Alerts.Firing }} {{ .Annotations.defining_entity }} — {{ .Labels.alertname }}{{- end -}}
+    {{- range .Alerts.Resolved }} {{ .Annotations.defining_entity }} — {{ .Labels.alertname }}{{- end -}}
+{{- end -}}
+
+{{ define "dbnd_title" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}]{{ if or (and (eq (len .Alerts.Firing) 1) (eq (len .Alerts.Resolved) 0)) (and (eq (len .Alerts.Firing) 0) (eq (len .Alerts.Resolved) 1)) }}{{ template "__single_message_title" . }}{{ end }}{{ end }}
+
+{{ define "dbnd_titlelink" }}{{ with index .Alerts 0 -}}http://{{ .Annotations.base_url }}/app/alerts{{- end -}}{{ end }}
+
+{{ define "dbnd_alert" }}
+*Alert*: {{ .Annotations.defining_entity }}{{ if .Labels.severity }} — `{{ .Labels.severity }}`{{ end }}:
+{{- if gt (len .Annotations.description) 0 }}
+• *Description*: {{ .Annotations.description }}
+• *Triggered On*: {{ .Labels.triggered_on }}
+{{ end -}}
+• *Run*: <http://{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}|{{ .Labels.run_name }}>
+• *Run Triggered By*: @{{ .Labels.run_triggered_by }}
+{{- if .Labels.af_dag_id }}
+• *Airflow Metadata*:
+	• *DAG ID*: {{ .Labels.af_dag_id}}
+	• *Exceution Date*: {{ .Labels.af_execution_date }}
+	{{- if .Labels.af_task_id }}
+	• *Task ID*: {{ .Labels.af_task_id}}
+	{{- end -}}
+{{- end -}}
+{{- if .Labels.error }}
+• *Error*: ```{{ .Labels.error }}```
+{{- end }}
+{{- end -}}
+
+{{ define "dbnd_slack_message" }}
+    {{- if gt (len .Alerts.Firing) 0 }}
+        *Alerts Firing:*
+        {{- range .Alerts.Firing }}
+        	{{ template "dbnd_alert" . }}
+		{{- end -}}
+	{{- end }}
+    {{- if gt (len .Alerts.Resolved) 0 }}
+        *Alerts Resolved:*
+        {{- range .Alerts.Resolved }}
+    		{{ template "dbnd_alert" . }}
+		{{- end -}}
+	{{- end }}
+{{- end -}}

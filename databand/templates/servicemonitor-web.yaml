@@ -1,0 +1,54 @@
+
+{{- if .Values.web.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ template "databand.fullname" . }}-web
+  {{- if .Values.web.serviceMonitor.namespace }}
+  namespace: {{ .Values.web.serviceMonitor.namespace }}
+  {{- end }}
+  labels:
+    app: {{ template "databand.name" . }}-web
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.web.serviceMonitor.labels }}
+    {{- toYaml .Values.web.serviceMonitor.labels | nindent 4 }}
+    {{- end }}
+spec:
+  endpoints:
+  - interval: {{ .Values.web.serviceMonitor.interval }}
+    {{- if .Values.web.serviceMonitor.scrapeTimeout }}
+    scrapeTimeout: {{ .Values.web.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+    targetPort: web
+    path: {{ .Values.web.serviceMonitor.path }}
+    scheme: {{ .Values.web.serviceMonitor.scheme }}
+{{- if .Values.web.serviceMonitor.application_metrics.enabled }}
+  - interval: {{ .Values.web.serviceMonitor.interval }}
+    {{- if .Values.web.serviceMonitor.scrapeTimeout }}
+    scrapeTimeout: {{ .Values.web.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+    metricRelabelings:
+{{- toYaml .Values.web.serviceMonitor.application_metrics.metricRelabelings | nindent 6 }}
+    targetPort: web
+    path: {{ .Values.web.serviceMonitor.application_metrics.path }}
+    scheme: {{ .Values.web.serviceMonitor.scheme }}
+{{- end }}
+  jobLabel: "{{ .Release.Name }}"
+  selector:
+    matchLabels:
+      app: {{ template "databand.name" . }}
+      component: web
+      release: "{{ .Release.Name }}"
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- if .Values.web.serviceMonitor.targetLabels }}
+  targetLabels:
+{{- range .Values.web.serviceMonitor.targetLabels }}
+    - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,144 @@
+{{- if .Values.ml_trainer.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "databand.fullname" . }}-ml-trainer
+  labels:
+    app: {{ template "databand.name" . }}
+    component: ml-trainer
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: 1
+  minReadySeconds: {{ .Values.ml_trainer.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: {{ template "databand.name" . }}
+      component: ml-trainer
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/config-env: {{ include (print $.Template.BasePath "/configmap-env.yaml") . | sha256sum }}
+{{- if .Values.databand.podAnnotations }}
+{{ toYaml .Values.databand.podAnnotations | indent 8 }}
+{{- end }}
+      labels:
+        app: {{ template "databand.name" . }}
+        component: ml-trainer
+        release: {{ .Release.Name }}
+    spec:
+      {{- if .Values.global.databand.image.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.databand.image.pullSecret }}
+        {{- if .Values.global.databand.image.additionalPullSecret }}
+        - name: {{ .Values.global.databand.image.additionalPullSecret }}
+        {{- end }}
+      {{- end }}
+      restartPolicy: Always
+      {{- if .Values.databand.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.databand.nodeSelector | indent 8 }}
+      {{- else if .Values.ml_trainer.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.ml_trainer.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.ml_trainer.affinity }}
+      affinity:
+{{ toYaml .Values.ml_trainer.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.ml_trainer.tolerations }}
+      tolerations:
+{{ toYaml .Values.ml_trainer.tolerations | indent 8 }}
+      {{- end }}
+      {{- if .Values.ml_trainer.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.ml_trainer.podSecurityContext | indent 8 }}
+      {{- else if .Values.databand.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.databand.podSecurityContext | indent 8 }}
+      {{- end }}
+      serviceAccountName: {{ template "databand.serviceAccountName" . }}
+      initContainers:
+      - name: wait-web
+        {{- if .Values.databand.initContainers.securityContext }}
+        securityContext:
+{{ toYaml .Values.databand.initContainers.securityContext | indent 12 }}
+        {{- end }}
+        image: {{ .Values.databand.initContainers.wait_web.image.repository }}:{{ .Values.databand.initContainers.wait_web.image.tag }}
+        {{- if .Values.global.databand.image.pullPolicy }}
+        imagePullPolicy: {{ .Values.global.databand.image.pullPolicy }}
+        {{- end }}
+        command: ['sh', '-c', 'for i in $(seq 1 200); do nc -z -w3 {{ template "databand.fullname" . }}-web 8090 && exit 0 || sleep 3; done; exit 1']
+        resources:
+{{ toYaml .Values.databand.initContainers.resources | indent 10 }}
+      containers:
+        - name: {{ .Chart.Name }}-ml-trainer
+          {{- if .Values.ml_trainer.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.ml_trainer.containerSecurityContext | indent 12 }}
+          {{- else if .Values.databand.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.databand.containerSecurityContext | indent 12 }}
+          {{- end }}
+          image: {{ .Values.global.databand.image.repository }}/dbnd-ml-trainer:python-{{ .Values.global.databand.image.tag }}
+          {{- if .Values.global.databand.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.databand.image.pullPolicy }}
+          {{- end }}
+          envFrom:
+          - configMapRef:
+              name: "databand-env"
+          env:
+          {{- include "databand.mapenvsecrets" . | indent 10 }}
+          resources:
+{{ toYaml .Values.ml_trainer.resources | indent 12 }}
+          volumeMounts:
+            - name: app-dist
+              mountPath: /app/dist
+          {{- $secretsDir := .Values.ml_trainer.secretsDir -}}
+          {{- range .Values.ml_trainer.secrets }}
+            - name: {{ . }}-volume
+              readOnly: true
+              mountPath: {{ $secretsDir }}/{{ . }}
+          {{- end }}
+          {{- range .Values.databand.extraConfigmapMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+              {{ if .subPath }}
+              subPath: {{ .subPath }}
+              {{ end }}
+          {{- end }}
+{{- if .Values.databand.extraVolumeMounts }}
+{{ toYaml .Values.databand.extraVolumeMounts | indent 12 }}
+{{- end }}
+          args:
+            - "bash"
+            - "-c"
+            - {{ include "databand.cmdrun" (dict "cmd" " dbnd-ml-trainer" "Values" .Values ) }}
+{{- end }}
+{{- if .Values.databand.extraContainers }}
+{{ toYaml .Values.databand.extraContainers | indent 8 }}
+{{- end }}
+      volumes:
+        {{- range .Values.ml_trainer.secrets }}
+        - name: {{ . }}-volume
+          secret:
+            secretName: {{ . }}
+        {{- end }}
+        {{- range .Values.databand.extraConfigmapMounts }}
+        - name: {{ .name }}
+          configMap:
+            name: {{ .configMap }}
+        {{- end }}
+        - name: app-dist
+          emptyDir: {}
+{{- if .Values.databand.extraVolumes }}
+{{ toYaml .Values.databand.extraVolumes | indent 8 }}
+{{- end }}

@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: "{{ template "dbnd-dbt-monitor.fullname" . }}"
+  labels:
+    app.kubernetes.io/name: "{{ template "dbnd-dbt-monitor.fullname" . }}"
+    app.kubernetes.io/managed-by: "{{ .Release.Service }}"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+{{- if .Values.service.labels }}
+{{ toYaml .Values.service.labels | indent 4 }}
+{{- end }}
+{{- with .Values.service.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+{{- if (or (eq .Values.service.type "ClusterIP") (empty .Values.service.type)) }}
+  type: ClusterIP
+  {{- if .Values.service.clusterIP }}
+  clusterIP: {{ .Values.service.clusterIP }}
+  {{ end }}
+{{- end }}
+  selector:
+    app.kubernetes.io/name: "{{ template "dbnd-dbt-monitor.fullname" . }}"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+  ports:
+    - name: web
+      protocol: TCP
+      port: {{ .Values.prometheus_port }}
+      targetPort: {{ .Values.prometheus_port }}
+{{ if (and (eq .Values.service.type "NodePort") (not (empty .Values.service.nodePort))) }}
+      nodePort: {{ .Values.service.nodePort }}
+{{ end }}

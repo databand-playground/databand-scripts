@@ -1,0 +1,65 @@
+{{- if .Values.users.readonly.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "cloudsqlinstance.fullname" . }}-readonly-user
+  labels:
+    app: {{ template "cloudsqlinstance.fullname" . }}
+    release: {{ .Release.Name }}
+    component: cloudsqlinstance
+    chart: {{ template "cloudsqlinstance.chart" . }}
+    heritage: {{ .Release.Service }}
+  annotations:
+{{- if not .Values.argocd.enabled }}
+    helm.sh/hook: post-install
+    helm.sh/hook-weight: "-4"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
+{{- else }}
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded, HookFailed, BeforeHookCreation
+{{- end }}
+{{- if .Values.jobs.db.annotations }}
+{{ toYaml .Values.jobs.db.annotations | indent 4 }}
+{{- end }}
+spec:
+  template:
+    metadata:
+      name: {{ template "cloudsqlinstance.fullname" . }}-readonly-user
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: psql-readonly-user
+          image: postgres:12.8-alpine
+          command:
+            - bash
+            - -c
+            - |
+              psql -h $CLOUDSQL_HOST -U postgres -d databand -tc "SELECT 1 FROM pg_user WHERE usename = '$username'" \
+              | grep -q 1 || psql -h $CLOUDSQL_HOST -U postgres -d databand << EOF
+              CREATE ROLE $username LOGIN PASSWORD '$password';
+              GRANT CONNECT ON DATABASE databand TO $username;
+              GRANT USAGE ON SCHEMA public TO $username;
+              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO $username;
+              EOF
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsqlpostgresql-conn
+                  key: password
+            - name: CLOUDSQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsqlpostgresql-conn
+                  key: endpoint
+            - name: username
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-readonly-user
+                  key: username
+            - name: password
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-readonly-user
+                  key: password
+{{- end -}}

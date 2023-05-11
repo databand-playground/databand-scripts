@@ -1,0 +1,14 @@
+apiVersion: v2
+version: 0.2.5
+name: cloudsqlinstance
+
+description: Helm Chart for gcp cloudql instance
+home: https://databand.ai
+maintainers:
+  - name: Evgeny Shulman
+    email: evgeny.shulman@databand.ai
+
+keywords:
+  - dbnd-cloudsql
+  - cloudsql
+  - cloudsqlinstance

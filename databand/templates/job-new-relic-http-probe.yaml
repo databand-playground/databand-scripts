@@ -1,0 +1,161 @@
+{{- if and .Values.databand.newrelic.synthetic_http_probe.enabled .Values.global.onepassword.enabled -}}
+{{- if not (regexMatch "test-.*" .Values.web.env) -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "databand.fullname" . }}-new-relic-http-probe
+  labels:
+    app: {{ template "databand.fullname" . }}
+    release: {{ .Release.Name }}
+    component: databand
+    baseComponent: new-relic-http-probe
+    chart: {{ template "databand.chart" . }}
+    heritage: {{ .Release.Service }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "6"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed
+{{- if .Values.global.onepassword.jobs.new_relic_http_probe.annotations }}
+{{ toYaml .Values.global.onepassword.jobs.new_relic_http_probe.annotations | indent 4 }}
+{{- end }}
+spec:
+  template:
+    metadata:
+      name: {{ template "databand.fullname" . }}-new-relic-http-probe
+    spec:
+      restartPolicy: Never
+      {{- if .Values.databand.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.databand.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.databand.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.databand.podSecurityContext | indent 8 }}
+      {{- end }}
+      containers:
+        - name: newrelic
+          {{- if .Values.databand.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.databand.containerSecurityContext | indent 12 }}
+          {{- end }}
+          image: registry.gitlab.com/gitlab-ci-utils/curl-jq:1.0.0
+          {{- if .Values.global.databand.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.databand.image.pullPolicy}}
+          {{- end }}
+          env:
+            - name: NEW_RELIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: onepassword-env
+                  key: NEW_RELIC_API_KEY
+          command:
+            - bash
+            - -c
+            - |
+                # New Relic notification channels and workflows are managed by Terraform
+                # See https://gitlab.com/databand/devops/devops-core/-/tree/master/terraform/newrelic
+                # API key and API endpoints
+                API_KEY=$NEW_RELIC_API_KEY
+                SYNTHETICS_API="https://synthetics.eu.newrelic.com/synthetics/api/v3/monitors"
+                SYNTHETICS_CONDITIONS_API="https://api.eu.newrelic.com/v2/alerts_synthetics_conditions"
+                ALERTS_API="https://api.eu.newrelic.com/v2/alerts_policies"
+                CHANNELS_API="https://api.eu.newrelic.com/v2/alerts_channels"
+                API_CONTENT_HEADER="Content-Type:application/json"
+                # Monitor variables
+                MONITOR_NAME="{{ .Values.web.env }} - http probe"
+                # Other attributes can be found at https://docs.newrelic.com/docs/apis/synthetics-rest-api/monitor-examples/attributes-synthetics-rest-api#api-attributes
+                MONITOR_TYPE='SIMPLE'
+                FREQUENCY={{ .Values.databand.newrelic.synthetic_http_probe.frequency | default 1 }}
+                SLA_THRESHOLD=7
+                LOCATIONS='{{ join "," .Values.databand.newrelic.synthetic_http_probe.locations }}'
+                DATABNAD_ENV_URL="https://{{ template "databand.external_url" . }}"
+                MONITOR_PAYLOAD="{ \"name\": \"$MONITOR_NAME\", \"frequency\": $FREQUENCY, \"locations\": [ $LOCATIONS ], \"status\": \"ENABLED\", \"type\": \"$MONITOR_TYPE\", \"uri\": \"$DATABNAD_ENV_URL\", \"slaThreshold\": $SLA_THRESHOLD }"
+                # Alert variables
+                RUNBOOK_URL="https://www.notion.so/Databand-SaaS-env-HTTP-Probe-failed-d79beb1aec234ef4a0757c69651b806b"
+                ALERT_POLICY_PAYLOAD="{ \"policy\": { \"incident_preference\": \"PER_CONDITION_AND_TARGET\", \"name\": \"$MONITOR_NAME\" } }"
+
+                # common functions
+                function getMonitorIdByName() {
+                    # jq -e returns non-zero exit code if object not found
+                    curl -k -sS -H "Api-Key:$API_KEY" $SYNTHETICS_API | jq -er ".monitors[] | select (.name == "\""$MONITOR_NAME"\"") |.id"
+                }
+
+                function getAlertPolicyIdByName() {
+                    # jq -e returns non-zero exit code if object not found
+                    curl -k -sS -H "Api-Key:$API_KEY" "$ALERTS_API".json | jq -er ".policies[] | select (.name == "\""$MONITOR_NAME"\"") |.id"
+                }
+
+                function getAlertConditionIdByName() {
+                    # jq -e returns non-zero exit code if object not found
+                    curl -k -sS -H "Api-Key:$API_KEY" "$SYNTHETICS_CONDITIONS_API".json -G -d "policy_id=$(getAlertPolicyIdByName)" | jq -er ".synthetics_conditions[] | select (.name == "\""$MONITOR_NAME"\"") |.id"
+                }
+
+                function createOrUpdateMonitor() {
+                    # create or update monitor
+                    if getMonitorIdByName; then
+                        echo -e "Monitor already exists - updating it with payload: \n$MONITOR_PAYLOAD"
+                        RESPONSE=$(curl -k -sS -w "\n%{HTTP_CODE}" -i -X PUT -H "Api-Key:$API_KEY" -H $API_CONTENT_HEADER $SYNTHETICS_API/"$(getMonitorIdByName)" -d "$MONITOR_PAYLOAD")
+                        HTTP_CODE=$(tail -n1 <<< "$RESPONSE") && export HTTP_CODE
+                    else
+                        # Monitor doesn't exist - creating it
+                        echo -e "Creating monitor with payload: \n$MONITOR_PAYLOAD"
+                        RESPONSE=$(curl -k -sS -w "\n%{HTTP_CODE}" -i -X POST -H "Api-Key:$API_KEY" -H $API_CONTENT_HEADER $SYNTHETICS_API -d "$MONITOR_PAYLOAD")
+                        HTTP_CODE=$(tail -n1 <<< "$RESPONSE") && export HTTP_CODE
+                    fi
+                }
+
+                function createOrUpdateAlertPolicy() {
+                    # create or update alert policy
+                    if getAlertPolicyIdByName; then
+                        echo -e "Alert policy already exists - updating it with payload: \n$ALERT_POLICY_PAYLOAD"
+                        RESPONSE=$(curl -k -sS -w "\n%{HTTP_CODE}" -i -X PUT -H "Api-Key:$API_KEY" -H $API_CONTENT_HEADER $ALERTS_API/"$(getAlertPolicyIdByName).json" -d "$ALERT_POLICY_PAYLOAD")
+                        HTTP_CODE=$(tail -n1 <<< "$RESPONSE") && export HTTP_CODE
+                    else
+                        # Alert policy doesn't exist - creating it
+                        echo -e "Creating alert policy with payload: \n$ALERT_POLICY_PAYLOAD"
+                        RESPONSE=$(curl -k -sS -w "\n%{HTTP_CODE}" -i -X POST -H "Api-Key:$API_KEY" -H $API_CONTENT_HEADER "$ALERTS_API".json -d "$ALERT_POLICY_PAYLOAD")
+                        HTTP_CODE=$(tail -n1 <<< "$RESPONSE") && export HTTP_CODE
+                    fi
+                }
+
+                function createOrUpdateAlertCondition {
+                    ALERT_POLICY_CONDITION_PAYLOAD="{ \"synthetics_condition\": { \"name\": \"$MONITOR_NAME\", \"monitor_id\": \"$(getMonitorIdByName)\", \"runbook_url\": \"$RUNBOOK_URL\", \"enabled\": \"true\" }"
+                    # create or update alert policy condition
+                    if getAlertConditionIdByName; then
+                        echo -e "Synthetic Alert Condition already exists - updating it with payload: \n$ALERT_POLICY_CONDITION_PAYLOAD"
+                        RESPONSE=$(curl -k -sS -w "\n%{HTTP_CODE}" -i -X PUT -H "Api-Key:$API_KEY" -H $API_CONTENT_HEADER $SYNTHETICS_CONDITIONS_API/"$(getAlertConditionIdByName).json" \
+                        -d "$ALERT_POLICY_CONDITION_PAYLOAD")
+                        HTTP_CODE=$(tail -n1 <<< "$RESPONSE") && export HTTP_CODE
+                    else
+                        # Alert policy condition doesn't exist - creating it
+                        echo -e "Creating Synthetic Alert Condition with payload: \n$ALERT_POLICY_CONDITION_PAYLOAD"
+                        RESPONSE=$(curl -k -sS -w "\n%{HTTP_CODE}" -i -X POST -H "Api-Key:$API_KEY" -H $API_CONTENT_HEADER $SYNTHETICS_CONDITIONS_API/policies/"$(getAlertPolicyIdByName).json" \
+                        -d "$ALERT_POLICY_CONDITION_PAYLOAD")
+                        HTTP_CODE=$(tail -n1 <<< "$RESPONSE") && export HTTP_CODE
+                    fi
+                }
+
+                function statusCheck() {
+                    case $1 in
+
+                        204|200)
+                        echo -e "[ $(date -u) ] - $2 successfully updated!"
+                        ;;
+
+                        201)
+                        echo -e "[ $(date -u) ] - $2 successfully created!"
+                        ;;
+
+                        *)
+                        echo -e "[ $(date -u) ] - Something went wrong! New Relic API responded with: \n$HTTP_CODE - $RESPONSE" && exit 1
+                        ;;
+                    esac
+                }
+
+                # main
+                createOrUpdateMonitor && statusCheck "$HTTP_CODE" "Monitor"
+                createOrUpdateAlertPolicy && statusCheck "$HTTP_CODE" "Alert policy"
+                createOrUpdateAlertCondition && statusCheck "$HTTP_CODE" "Alert policy condition"
+                # end
+{{- end -}}
+{{- end -}}

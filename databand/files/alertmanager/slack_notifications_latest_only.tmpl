@@ -1,0 +1,68 @@
+{{ define "dbnd_title" }}{{- if gt (len .Alerts.Firing) 0 }}{{ with index .Alerts.Firing 0 -}}:bell: {{ if .Labels.severity }}*{{ .Labels.severity }}* {{ end }}{{ .Labels.title }}{{- end -}}{{- end -}}{{ end }}
+
+{{ define "dbnd_titlelink" }}{{- if gt (len .Alerts.Firing) 0 }}{{ with index .Alerts.Firing 0 -}}{{- if .Annotations.defining_entity }}http://{{ .Annotations.base_url }}/app/alerts/{{ .Labels.alert_id }}?utm_source=slack&utm_alert={{ .Labels.alert_id }}&utm_link=title{{- end -}}{{- end -}}{{- end -}}{{ end }}
+
+{{ define "dbnd_slack_message" }}
+
+
+{{- if gt (len .Alerts.Firing) 0 }}
+{{ with index .Alerts.Firing 0 -}}
+
+*<http://{{ .Annotations.base_url }}/app/alerts/{{.Labels.alert_id}}/overview?user_slack_action=resolve&utm_source=slack | :white_check_mark:  Click to Resolve>*
+
+*<http://{{ .Annotations.base_url }}/app/alerts/{{.Labels.alert_id}}/overview?user_slack_action=acknowledge&utm_source=slack | :female-factory-worker:  Click to Acknowledge>*
+    {{- if gt (len .Annotations.description) 0 }}
+
+*Description*: {{ .Annotations.description }}
+    {{- if .Annotations.has_alert_trend }}
+    :new: *<http://{{ .Annotations.base_url }}/app/alerts/{{ .Labels.alert_id }}?utm_source=slack&utm_alert={{ .Labels.alert_id }} | Compare recent values of pipeline duration>*
+    {{- end }}
+    {{- if .Annotations.defining_entity }}
+    • *Origin pipeline*: <http://{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.job_id }}?utm_source=slack&utm_alert={{ .Labels.alert_id }}&utm_link=pipeline | {{ .Labels.job_name }}>
+    {{- end }}
+    {{- if .Labels.task_run_uid }}
+    • *Origin task*: <http://{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}/{{ .Labels.task_run_uid }}?utm_source=slack&utm_alert={{ .Labels.alert_id }}&utm_link=task_name | {{ .Labels.task_name }}>
+    {{- end }}
+    {{- if gt .Annotations.origin_datasets_num "0" }}
+    • *Origin datasets*:
+    {{- $base_url := .Annotations.base_url -}}
+    {{- $alert_id  := .Labels.alert_id -}}
+    {{ range .Annotations.SortedPairs }}
+    {{- if match "dataset_origin_*" .Name }}
+         ○ *<http://{{ $base_url }}/app/datasets/{{ slice .Value  0 36 }}?utm_source=slack&utm_alert={{ $alert_id }}&utm_link=origin_datasets| {{ slice .Value 36 }} >*
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    • *Alert trigger time*: UTC {{ .Labels.triggered_on }}
+    • *Alert trigger value*: {{ .Labels.triggered_value }}
+    {{- if .Labels.run_start_time }}
+    • *Run start time*: UTC {{ .Labels.run_start_time }}
+    {{- end }}
+    {{- if .Labels.run_uid }}
+    {{- if .Labels.run_name }}
+    • *Run name*: <http://{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}?utm_source=slack&utm_alert={{ .Labels.alert_id }}&utm_link=run_name | {{ .Labels.run_name }}>
+    {{- end }}
+    {{- end }}
+    • *Triggered by*: {{ or .Labels.run_triggered_by "Databand" }}
+    {{- if .Labels.project_name}}
+    • *Project name*: {{ .Labels.project_name }}
+    {{- end }}
+    {{- if .Labels.af_instance_name}}
+    • *Source*: {{ .Labels.af_instance_name }}
+    {{- end }}
+    {{- if .Labels.airflow_tags }}
+    • *Airflow tags*: {{.Labels.airflow_tags}}
+    {{- end }}
+    {{- if gt (len .Labels.missing_ops) 0 }}
+    • *<http://{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}/datasets?utm_source=slack&utm_alert={{ .Labels.alert_id }}&utm_link=missing_op | {{ .Labels.missing_ops_num }} Missing Operations:>*
+{{.Labels.missing_ops}}
+    {{- end }}
+    {{- if gt (len .Labels.schema_changes) 0 }}
+    • *<http://{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}/datasets?utm_source=slack&utm_alert={{ .Labels.alert_id }}&utm_link=schema_change| Schema changed in {{ .Labels.schema_changes_num }} operation(s):>*
+{{.Labels.schema_changes}}
+    {{- end }}
+<http://{{ .Annotations.base_url }}/app/alerts/{{ .Labels.alert_id }}?utm_source=slack&utm_alert={{ .Labels.alert_id }}&utm_link=alert_details | Alert details>
+    {{ end }}
+{{- end -}}
+{{- end -}}
+{{- end -}}

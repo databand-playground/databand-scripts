@@ -1,0 +1,21 @@
+memorystoreInstanceName: ""
+deletionPolicy: Orphan
+
+settings:
+  region: us-east1
+
+  redisVersion: REDIS_6_X
+  tier: STANDARD_HA
+
+  memorySizeGb: "1"
+
+  redisConfigs: {}
+
+  connectMode: "PRIVATE_SERVICE_ACCESS"
+
+  labels:
+    managed-by: crossplane
+
+## k8s secret name where connection information are stored
+writeConnectionSecretToRef:
+  name: cloudmemorystore-conn

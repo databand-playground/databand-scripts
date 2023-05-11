@@ -1,0 +1,57 @@
+## Client name will be used in topic, subscription, service account and cf worker names
+## It should be equal to client domain name
+## Example: domain == shipper.databand.ai, clientName == shipper
+clientName: ""
+deletionPolicy: Orphan
+# Custom domain to be used for push subscription
+# Default: {{ .Values.clientName }}.databand.ai
+domain: ""
+
+# Prforms health check, expecting CF worker to handle requests
+cfMonitor:
+  enabled: true
+
+## PubSub configuration: topics and subscription
+pubsub:
+  topic:
+    main:
+      enabled: true
+    dead:
+      enabled: true
+  subscription:
+    defaults:
+      # default message retention duration
+      messageRetentionDuration: 604800s
+      deadLetterPolicy:
+        enabled: true
+        maxDeliveryAttempts: 5
+      ackDeadlineSeconds: 120
+      enableMessageOrdering: true
+      expirationPolicy:
+        ttl: 2678400s
+      retainAckedMessages: false
+      retryPolicy:
+        maximumBackoff: 600s
+        minimumBackoff: 10s
+      filter: ""
+    main:
+      enabled: true
+      messageRetentionDuration: ""
+      pushConfig:
+        enableAuth: true
+        serviceAccountEmail: "pubsub-subscription-push@dbnd-public.iam.gserviceaccount.com"
+        # Custom audience value, by default clientName is used
+        audience: ""
+    dead:
+      enabled: true
+      messageRetentionDuration: ""
+    bigquery:
+      enabled: false
+      bigQueryConfig:
+        # E.g. "project-id-123:bigquery-dataset.main"
+        table: ""
+
+nodeSelector:
+  node_pool: customers
+
+tolerations: []

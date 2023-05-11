@@ -1,0 +1,18 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dbnd-alertmanager-cm
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "databand.name" . }}
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dbnd-alertmanager-cm
+subjects:
+- kind: ServiceAccount
+  name: dbnd-alertmanager-cm
+  namespace: {{ .Release.Namespace }}

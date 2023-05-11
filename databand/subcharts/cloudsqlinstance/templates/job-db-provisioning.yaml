@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "cloudsqlinstance.fullname" . }}-psql
+  labels:
+    app: {{ template "cloudsqlinstance.fullname" . }}
+    release: {{ .Release.Name }}
+    component: cloudsqlinstance
+    chart: {{ template "cloudsqlinstance.chart" . }}
+    heritage: {{ .Release.Service }}
+{{- if .Values.argocd.enabled }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded, HookFailed, BeforeHookCreation
+{{- if .Values.jobs.db.annotations }}
+{{ toYaml .Values.jobs.db.annotations | indent 4 }}
+{{- end }}
+{{- end }}
+spec:
+  template:
+    metadata:
+      name: {{ template "cloudsqlinstance.fullname" . }}-psql
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: psql-create-db
+          image: postgres:12.8-alpine
+          command:
+            - bash
+            - -c
+            - |
+              for i in $(seq 1 100); do nc -z -w3 $CLOUDSQL_HOST 5432 || sleep 3; done && \
+              echo "SELECT 'CREATE DATABASE databand' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'databand')\gexec" | psql -U postgres -h $CLOUDSQL_HOST && \
+              psql -U postgres -h $CLOUDSQL_HOST -d databand -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements'
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsqlpostgresql-conn
+                  key: password
+            - name: CLOUDSQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsqlpostgresql-conn
+                  key: endpoint

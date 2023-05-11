@@ -1,0 +1,27 @@
+{{ define "dbnd_opsgenie_subject" }}{{- if gt (len .Alerts.Firing) 0 }}{{ with index .Alerts.Firing 0 -}}{{ if .Labels.severity }}*{{ .Labels.severity }}* {{ end }}Alert for a {{ .Annotations.defining_entity }}{{- end -}}{{- end -}}{{ end }}
+
+{{ define "dbnd_opsgenie_message" }}
+<h3>Alert Details:</h3>
+    {{- if gt (len .Alerts.Firing) 0 }}
+    {{- with index .Alerts.Firing 0 -}}
+    <ul>
+        <li><strong>Alert</strong>: {{ .Annotations.defining_entity }}{{ if .Labels.severity }} — <strong>{{ .Labels.severity }}</strong>{{ end }}<br></li>
+        <li><strong>Summary</strong>: {{ .Annotations.description }}</li>
+        <li><strong>Alert Trigger Time</strong>: UTC {{ .Labels.triggered_on }}</li>
+        <li><strong>Run Start Time</strong>: UTC {{ .Labels.run_start_time }}</li>
+        <li><strong>Run Name</strong>: <a href="http://{{ .Annotations.base_url }}/app/jobs/{{ .Labels.job_name }}/{{ .Labels.run_uid }}?utm_source=opsgenie">{{ .Labels.run_name }}</a></li>
+        <li><strong>Triggered By</strong>: {{ .Labels.run_triggered_by }}</li>
+        {{- if gt (len .Labels.missing_ops) 0 }}
+        <li><strong>Missing Operations</strong>:
+        {{.Labels.missing_ops}}
+        </li>
+        {{- end }}
+
+
+        {{- if .Labels.error_with_traceback }}
+        <li><strong>Error</strong>: <pre>{{ .Labels.error_with_traceback }}</pre> </li>
+        {{- end }}
+    </ul>
+    {{- end -}}
+    {{- end -}}
+{{- end -}}

@@ -1,0 +1,33 @@
+dependencies:
+- name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 11.6.2
+- name: prometheus
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 15.17.0
+- name: prometheus-postgres-exporter
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 2.10.1
+- name: dbnd-datasource-monitor
+  repository: file://subcharts/dbnd-datasource-monitor
+  version: 0.2.9
+- name: dbnd-dbt-monitor
+  repository: file://subcharts/dbnd-dbt-monitor
+  version: 0.1.4
+- name: dbnd-datastage-monitor
+  repository: file://subcharts/dbnd-datastage-monitor
+  version: 0.1.4
+- name: dbnd-cloud-queue
+  repository: file://subcharts/dbnd-cloud-queue
+  version: 1.0.78
+- name: cloudsqlinstance
+  repository: file://subcharts/cloudsqlinstance
+  version: 0.2.5
+- name: cloudmemorystore
+  repository: file://subcharts/cloudmemorystore
+  version: 0.1.0
+- name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 17.3.16
+digest: sha256:d2eb29191a3632b04064f18066d5b85b6fa55c82a27d815d4e767d0ec0933ab9
+generated: "2023-01-16T17:57:46.971309+02:00"

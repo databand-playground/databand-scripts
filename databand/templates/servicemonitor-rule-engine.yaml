@@ -1,0 +1,43 @@
+
+{{- if .Values.rule_engine.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ template "databand.fullname" . }}-rule-engine
+  {{- if .Values.rule_engine.serviceMonitor.namespace }}
+  namespace: {{ .Values.rule_engine.serviceMonitor.namespace }}
+  {{- end }}
+  labels:
+    app: {{ template "databand.name" . }}-rule-engine
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.rule_engine.serviceMonitor.labels }}
+    {{- toYaml .Values.rule_engine.serviceMonitor.labels | nindent 4 }}
+    {{- end }}
+spec:
+  endpoints:
+  - interval: {{ .Values.rule_engine.serviceMonitor.interval }}
+    {{- if .Values.rule_engine.serviceMonitor.scrapeTimeout }}
+    scrapeTimeout: {{ .Values.rule_engine.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+    targetPort: {{ .Values.rule_engine.service.servicePort }}
+    path: {{ .Values.rule_engine.serviceMonitor.path }}
+    scheme: {{ .Values.rule_engine.serviceMonitor.scheme }}
+  jobLabel: "{{ .Release.Name }}"
+  selector:
+    matchLabels:
+      app: {{ template "databand.name" . }}
+      component: rule-engine
+      release: "{{ .Release.Name }}"
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- if .Values.rule_engine.serviceMonitor.targetLabels }}
+  targetLabels:
+{{- range .Values.rule_engine.serviceMonitor.targetLabels }}
+    - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,57 @@
+apiVersion: database.gcp.crossplane.io/v1beta1
+kind: CloudSQLInstance
+metadata:
+  labels:
+    app: {{ template "cloudsqlinstance.fullname" . }}
+    release: {{ .Release.Name }}
+    component: cloudsqlinstance
+    chart: {{ template "cloudsqlinstance.chart" . }}
+    heritage: {{ .Release.Service }}
+  name: dbnd-{{ .Values.sqlInstanceName }}
+spec:
+  deletionPolicy: {{ .Values.deletionPolicy }}
+  forProvider:
+    databaseVersion: {{ .Values.settings.databaseVersion }}
+    region: {{ .Values.settings.region }}
+    settings:
+      availabilityType: {{ .Values.settings.availabilityType }}
+      tier: {{ .Values.settings.tier }}
+      dataDiskType: {{ .Values.settings.dataDiskType }}
+      dataDiskSizeGb: {{ .Values.settings.dataDiskSizeGb }}
+      storageAutoResizeLimit: {{ .Values.settings.storageAutoResizeLimit }}
+      backupConfiguration:
+        enabled: {{ .Values.settings.backupConfiguration.enabled }}
+        startTime: {{ .Values.settings.backupConfiguration.startTime }}
+        location: {{ .Values.settings.backupConfiguration.location }}
+      {{- if .Values.settings.databaseFlags }}
+      databaseFlags:
+      {{- range .Values.settings.databaseFlags }}
+      - name: {{ .name }}
+        value: {{ .value | quote }}
+      {{- end }}
+      {{- end }}
+      ipConfiguration:
+        authorizedNetworks:
+        {{- range .Values.settings.ipConfiguration.authorizedNetworks }}
+        - name: {{ .name }}
+          value: {{ .value }}
+          expirationTime: ""
+        {{- end }}
+        ipv4Enabled: {{ .Values.settings.ipConfiguration.ipv4Enabled }}
+        requireSsl: {{ .Values.settings.ipConfiguration.requireSsl }}
+        privateNetwork: {{ .Values.settings.ipConfiguration.privateNetwork }}
+      {{- if .Values.settings.userLabels }}
+      userLabels:
+        {{ toYaml .Values.settings.userLabels }}
+      {{- end }}
+      maintenanceWindow:
+        day: {{ .Values.settings.maintenanceWindow.day }}
+        hour: {{ .Values.settings.maintenanceWindow.hour }}
+        updateTrack: {{ .Values.settings.maintenanceWindow.updateTrack }}
+    {{- if .Values.replica.enabled }}
+    replicaNames:
+      - dbnd-{{ .Values.sqlInstanceName }}-replica
+    {{- end }}
+  writeConnectionSecretToRef:
+    namespace: {{ .Release.Namespace }}
+    name: {{ .Values.writeConnectionSecretToRef.name }}

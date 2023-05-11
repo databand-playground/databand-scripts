@@ -1,0 +1,43 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ template "databand.fullname" . }}-namespace-only
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "databand.name" . }}
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  podSelector: {} # Policy is applied to all pods in the namespace
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+{{- if .Values.networkPolicy.ingress.allowInNamespace }}
+        - podSelector: {} # Ingress traffic from any pod in the namespace will be allowed
+{{- end }}
+{{- if .Values.networkPolicy.ingress.allowExternal }}
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+{{- end }}
+{{- if .Values.networkPolicy.ingress.extraIngress }}
+{{ toYaml .Values.networkPolicy.ingress.extraIngress | indent 4 }}
+{{- end }}
+  egress:
+{{- if .Values.networkPolicy.egress.extraEgress }}
+{{ toYaml .Values.networkPolicy.egress.extraEgress | indent 4 }}
+{{- end }}
+{{- if .Values.networkPolicy.egress.allowInNamespace }}
+    - to:
+        - podSelector: {} # Egress traffic to any pod in the namespace will be allowed
+{{- end }}
+{{- if .Values.networkPolicy.egress.allowExternal }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0 # Egress traffic to any endpoint outside of the cluster will be allowed
+{{- end }}
+{{- end }}

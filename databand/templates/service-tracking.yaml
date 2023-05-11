@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "databand.fullname" . }}-tracking
+  labels:
+    app: {{ template "databand.name" . }}
+    component: tracking
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+  {{- if .Values.tracking.service.annotations }}
+{{ toYaml .Values.tracking.service.annotations | trim | indent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.tracking.service.type }}
+  type: {{ .Values.tracking.service.type }}
+  {{- else }}
+  type: {{ .Values.databand.service.type }}
+  {{- end }}
+  selector:
+    app: {{ template "databand.name" . }}
+    component: tracking
+    release: {{ .Release.Name }}
+  ports:
+    - name: tracking
+      protocol: TCP
+      port: {{ .Values.tracking.service.servicePort }}
+      targetPort: 8091
+{{- if .Values.tracking.service.nodePort }}
+      nodePort: {{ .Values.tracking.service.nodePort }}
+{{- end }}

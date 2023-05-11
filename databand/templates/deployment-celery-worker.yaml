@@ -1,0 +1,139 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "databand.fullname" . }}-celery-worker
+  labels:
+    app: {{ template "databand.name" . }}
+    component: celery-worker
+    baseComponent: databand-webserver
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: 1
+  minReadySeconds: {{ .Values.celery.worker.minReadySeconds }}
+  strategy:
+    # Smooth rolling update of the celery-worker service
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: {{ template "databand.name" . }}
+      component: celery-worker
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/config-env: {{ include (print $.Template.BasePath "/configmap-env.yaml") . | sha256sum }}
+{{- if .Values.databand.podAnnotations }}
+{{ toYaml .Values.databand.podAnnotations | indent 8 }}
+{{- end }}
+{{- if .Values.celery.worker.podAnnotations }}
+{{ toYaml .Values.celery.worker.podAnnotations | indent 8 }}
+{{- end }}
+      labels:
+        app: {{ template "databand.name" . }}
+        component: celery-worker
+        baseComponent: databand-webserver
+        release: {{ .Release.Name }}
+    spec:
+      {{- if .Values.global.databand.image.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.databand.image.pullSecret }}
+      {{- end }}
+      restartPolicy: Always
+      {{- if .Values.databand.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.databand.nodeSelector | indent 8 }}
+      {{- else if .Values.celery.worker.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.celery.worker.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.celery.worker.affinity }}
+      affinity:
+{{ toYaml .Values.celery.worker.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.celery.worker.tolerations }}
+      tolerations:
+{{ toYaml .Values.celery.worker.tolerations | indent 8 }}
+      {{- end }}
+      {{- if .Values.celery.worker.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.celery.worker.podSecurityContext | indent 8 }}
+      {{- else if .Values.databand.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.databand.podSecurityContext | indent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}-celery-worker
+          {{- if .Values.celery.worker.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.celery.worker.containerSecurityContext | indent 12 }}
+          {{- else if .Values.databand.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.databand.containerSecurityContext | indent 12 }}
+          {{- end }}
+          image: {{ .Values.global.databand.image.repository }}/dbnd-webserver:python-{{ .Values.global.databand.image.tag }}
+          {{- if .Values.global.databand.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.databand.image.pullPolicy }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: "databand-env"
+          env:
+            {{- include "databand.mapenvsecrets" . | indent 10 }}
+          resources:
+{{ toYaml .Values.celery.worker.resources | indent 12 }}
+          volumeMounts:
+            - name: dbnd-prom
+              mountPath: /dbnd/prom
+            - name: var-tmp
+              mountPath: /var/tmp
+          {{- range .Values.databand.extraConfigmapMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+              {{ if .subPath }}
+              subPath: {{ .subPath }}
+              {{ end }}
+          {{- end }}
+{{- if .Values.databand.extraVolumeMounts }}
+{{ toYaml .Values.databand.extraVolumeMounts | indent 12 }}
+{{- end }}
+          args:
+            - "bash"
+            - "-c"
+            - {{ include "databand.cmdrun" (dict "cmd" " dbnd-web celery worker --concurrency 4 --pool threads" "Values" .Values ) }}
+          ports:
+            - name: celery-worker
+              containerPort: {{ .Values.celery.worker.servicePort }}
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - 'dbnd-web celery inspect ping -d celery@$HOSTNAME'
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 30
+            successThreshold: 1
+            failureThreshold: 5
+{{- if .Values.databand.extraContainers }}
+{{ toYaml .Values.databand.extraContainers | indent 8 }}
+{{- end }}
+      volumes:
+        {{- range .Values.databand.extraConfigmapMounts }}
+        - name: {{ .name }}
+          configMap:
+            name: {{ .configMap }}
+        {{- end }}
+        - name: dbnd-prom
+          emptyDir: {}
+        - name: var-tmp
+          emptyDir: {}
+{{- if .Values.databand.extraVolumes }}
+{{ toYaml .Values.databand.extraVolumes | indent 8 }}
+{{- end }}

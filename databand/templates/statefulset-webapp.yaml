@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "databand.fullname" . }}-webapp
+  labels:
+    app: {{ template "databand.name" . }}
+    component: webapp
+    chart: {{ template "databand.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+{{- if .Values.webapp.minReadySeconds }}
+  minReadySeconds: {{ .Values.webapp.minReadySeconds }}
+{{- end }}
+  podManagementPolicy: Parallel
+{{- if .Values.databand.ha.enabled }}
+  replicas: {{ max .Values.databand.ha.replicaCount .Values.webapp.replicaCount }}
+{{- else }}
+  replicas: {{ .Values.webapp.replicaCount }}
+{{- end }}
+  updateStrategy:
+    # Smooth rolling update of the webapp service
+    type: RollingUpdate
+  serviceName: {{ template "databand.fullname" . }}-webapp
+  selector:
+    matchLabels:
+      app: {{ template "databand.name" . }}
+      component: webapp
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+{{- if .Values.webapp.podAnnotations }}
+{{ toYaml .Values.webapp.podAnnotations | indent 8 }}
+{{- end }}
+      labels:
+        app: {{ template "databand.name" . }}
+        component: webapp
+        release: {{ .Release.Name }}
+    spec:
+      {{- if .Values.global.databand.image.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.databand.image.pullSecret }}
+      {{- end }}
+      restartPolicy: Always
+      {{- if .Values.databand.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.databand.nodeSelector | indent 8 }}
+      {{- else if .Values.webapp.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.webapp.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.webapp.affinity }}
+      affinity:
+{{ toYaml .Values.webapp.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.webapp.tolerations }}
+      tolerations:
+{{ toYaml .Values.webapp.tolerations | indent 8 }}
+      {{- end }}
+      {{- if .Values.webapp.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.webapp.podSecurityContext | indent 8 }}
+      {{- else if .Values.databand.podSecurityContext }}
+      securityContext:
+{{ toYaml .Values.databand.podSecurityContext | indent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}-webapp
+          {{- if .Values.webapp.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.webapp.containerSecurityContext | indent 12 }}
+          {{- else if .Values.databand.containerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.databand.containerSecurityContext | indent 12 }}
+          {{- end }}
+          image: {{ .Values.global.databand.image.repository }}/dbnd-webapp:nginx-{{ .Values.global.databand.image.tag }}
+          {{- if .Values.global.databand.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.databand.image.pullPolicy}}
+          {{- end }}
+          ports:
+            - name: webapp
+              containerPort: 8080
+              protocol: TCP
+          resources:
+{{ toYaml .Values.webapp.resources | indent 12 }}
+          {{ if .Values.webapp.persistence.enabled }}
+          volumeMounts:
+            - name: webapp-builds
+              mountPath: /usr/share/nginx/html/
+            - name: var-cache-nginx
+              mountPath: /var/cache/nginx
+            - name: var-run-nginx
+              mountPath: /var/run
+          {{- end }}
+          livenessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - "[ -f /run/nginx.pid ] && ps -A | grep nginx"
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: "/"
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+{{ if .Values.webapp.persistence.enabled }}
+      volumes:
+        - name: var-cache-nginx
+          emptyDir: {}
+        - name: var-run-nginx
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: webapp-builds
+      spec:
+        accessModes:
+          - {{ .Values.webapp.persistence.accessMode | quote }}
+        {{- if .Values.webapp.persistence.storageClass }}
+        {{- if (eq "-" .Values.webapp.persistence.storageClass) }}
+        storageClassName: ""
+        {{- else }}
+        storageClassName: "{{ .Values.webapp.persistence.storageClass }}"
+        {{- end }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.webapp.persistence.size | quote }}
+{{- end }}

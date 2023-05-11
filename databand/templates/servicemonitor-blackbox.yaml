@@ -1,0 +1,53 @@
+{{- if or (and .Values.blackbox.enabled .Values.ingress.external.enabled) (and .Values.blackbox.enabled .Values.ingress.enabled) }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ template "databand.fullname" . }}-blackbox
+  labels:
+    app.kubernetes.io/name: {{ template "databand.fullname" . }}-blackbox
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ template "databand.chart" . }}
+    {{- if .Values.blackbox.labels }}
+    {{- toYaml .Values.blackbox.labels | nindent 4 }}
+    {{- end }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "6"
+spec:
+  endpoints:
+  - port: http
+    scheme: {{ .Values.blackbox.scheme | default "http" }}
+    {{- if .Values.blackbox.bearerTokenFile }}
+    bearerTokenFile: {{ .Values.blackbox.bearerTokenFile }}
+    {{- end }}
+    {{- if .Values.blackbox.tlsConfig }}
+    tlsConfig: {{ toYaml .Values.blackbox.tlsConfig | nindent 6 }}
+    {{- end }}
+    path: "/probe"
+    interval: {{ .Values.blackbox.interval | default "30s" }}
+    scrapeTimeout: {{ .Values.blackbox.scrapeTimeout | default "30s" }}
+    params:
+      module:
+      - {{ .Values.blackbox.module | default "http_2xx" }}
+      target:
+      - https://{{ template "databand.external_url" . }}
+    metricRelabelings:
+      - targetLabel: instance
+        replacement: https://{{ template "databand.external_url" . }}
+      - targetLabel: target
+        replacement: {{ template "databand.external_url" . }}
+        {{- range $targetLabel, $replacement := .Values.blackbox.additionalMetricsRelabels }}
+      - targetLabel: {{ $targetLabel }}
+        replacement: {{ $replacement }}
+        {{- end }}
+  jobLabel: prometheus-blackbox-exporter
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-blackbox-exporter
+      app.kubernetes.io/instance: prometheus-blackbox-exporter
+  namespaceSelector:
+    matchNames:
+      - monitoring
+{{- end }}

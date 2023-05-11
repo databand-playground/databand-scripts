@@ -1,0 +1,61 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 5s
+
+  external_labels:
+    monitor: "my-project"
+
+rule_files:
+  - "alert.rules"
+  - "*alert.yml"
+
+# alerting
+alerting:
+  alertmanagers:
+    - scheme: http
+      static_configs:
+        - targets:
+            - "alertmanager:9093"
+
+scrape_configs:
+  - job_name: "prometheus"
+    scrape_interval: 5s
+    static_configs:
+      - targets:
+          - "prometheus:9090"
+
+  - job_name: "node-exporter"
+    scrape_interval: 5s
+    static_configs:
+      - targets:
+          - "node-exporter:9100"
+
+  - job_name: "databand-webserver-metrics"
+    scrape_interval: 5s
+    scrape_timeout: 5s
+    metrics_path: "/api/internal/v1/dbnd_tracking_metrics"
+    static_configs:
+      - targets:
+          - "webserver:8080"
+
+  - job_name: "databand-tracking-server-metrics"
+    scrape_interval: 5s
+    scrape_timeout: 5s
+    metrics_path: "/api/internal/v1/dbnd_tracking_metrics"
+    static_configs:
+      - targets:
+          - "tracking-server:8091"
+
+  - job_name: "databand-rule-engine-metrics"
+    scrape_interval: 5s
+    scrape_timeout: 5s
+    static_configs:
+      - targets:
+          - "rule-engine:8008"
+
+  - job_name: "alertmanager"
+    scrape_interval: 5s
+    scrape_timeout: 5s
+    static_configs:
+      - targets:
+          - "alertmanager:9093"

@@ -1,0 +1,23 @@
+## HOWTO: When using manual mode (SYNC_ALERTMANAGER_CONFIG=False, USE_ALERTMANAGER_TEMPLATE=True)
+## Copy this file to the same folder under the name: `alertmanager.yml` and make the relevant changes
+
+receivers:
+  - name: databand # Do not remove
+    webhook_configs:
+      - send_resolved: false
+        url: http://webserver:8090/api/internal/v1/alertmanager_webhook
+
+route:
+  receiver: databand # Do not remove
+  routes:
+    - receiver: databand # Do not remove
+      continue: false
+      group_interval: 5s
+      group_wait: 1s
+      matchers:
+        - is_dbnd_internal = "true"
+
+templates:
+  - /etc/config/slack_notifications_latest_only.tmpl
+  - /etc/config/email.tmpl
+  - /etc/config/opsgenie.tmpl
